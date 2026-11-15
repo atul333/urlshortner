@@ -358,7 +358,14 @@ async function run() {
     assert.equal(reopen.status, 200);
     const go2 = await visitor.req(reopen.data.redirect_url);
     assert.equal(go2.status, 302);
-    console.log('✓ Anti-bypass defenses (PoW, cookie binding, signature check, single-use /go/:token, reopen) verified');
+
+    // 4k. Unlock page shows Get Link button on the same page after payment (no auto-redirect timer)
+    const unlockPage = await anon.req(`/${alias}`);
+    assert.equal(unlockPage.status, 200);
+    assert.ok(unlockPage.data.includes('id="getLinkBtn"'), 'Unlock page must display Get Link button');
+    assert.ok(unlockPage.data.includes('clickGetLink()'), 'Get Link button must invoke clickGetLink');
+    assert.equal(unlockPage.data.includes('setTimeout(() => { window.location.href'), false, 'Unlock page must not auto-redirect before clicking Get Link');
+    console.log('✓ Anti-bypass defenses (PoW, cookie binding, signature check, single-use /go/:token, reopen, Get Link page) verified');
 
     // 5. Creator Webhook + Razorpay Webhook Idempotency
     // Wait briefly for async creator webhook delivery

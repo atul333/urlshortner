@@ -527,7 +527,6 @@ code {
 
 .sidebar-close-btn,
 .mobile-dash-header,
-.mobile-tab-strip,
 .drawer-backdrop {
   display: none;
 }
@@ -1135,45 +1134,6 @@ tr:hover td {
     background: rgba(245, 158, 11, 0.18);
     color: #fbbf24;
     border-color: rgba(251, 191, 36, 0.35);
-  }
-
-  .mobile-tab-strip {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0.62rem 1rem;
-    background: #ffffff;
-    border-bottom: 1px solid var(--border);
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .mobile-tab-strip::-webkit-scrollbar {
-    display: none;
-  }
-
-  .mobile-tab-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.42rem 0.85rem;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: #f8fafc;
-    color: var(--text-muted);
-    font-size: 0.8rem;
-    font-weight: 600;
-    white-space: nowrap;
-    flex-shrink: 0;
-    cursor: pointer;
-    touch-action: manipulation;
-  }
-
-  .mobile-tab-pill.active {
-    background: var(--primary);
-    color: #ffffff;
-    border-color: var(--primary);
   }
 
   .drawer-backdrop.open {

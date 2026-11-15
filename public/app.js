@@ -397,11 +397,6 @@ function render() {
   } else {
     root.innerHTML = renderPublicLayout();
   }
-  const strip = root.querySelector('.mobile-tab-strip');
-  const activeTab = strip?.querySelector('.mobile-tab-pill.active');
-  if (strip && activeTab) {
-    strip.scrollLeft = Math.max(0, activeTab.offsetLeft - (strip.clientWidth - activeTab.clientWidth) / 2);
-  }
 }
 
 // ============================================================================
@@ -1219,14 +1214,6 @@ function renderMemberShell() {
             <span class="mobile-dash-title">${esc(s.site_name)}</span>
           </div>
           <span class="mobile-dash-pill" onclick="switchMemberTab('withdraw')">Wallet: ${fmtINR(u.balance_rupees)}</span>
-        </div>
-
-        <div class="mobile-tab-strip">
-          ${nav.map((n) => `
-            <button type="button" class="mobile-tab-pill ${state.memberTab === n.id ? 'active' : ''}" onclick="switchMemberTab('${n.id}')">
-              <span>${n.icon}</span><span>${n.label}</span>
-            </button>
-          `).join('')}
         </div>
 
         <div class="dashboard-topbar">
@@ -2067,14 +2054,6 @@ function renderAdminShell() {
             <span class="mobile-dash-title">Admin Console</span>
           </div>
           <span class="mobile-dash-pill admin" onclick="switchAdminTab('settings')">Fee: ${state.settings.withdrawal_commission_percent}%</span>
-        </div>
-
-        <div class="mobile-tab-strip">
-          ${nav.map((n) => `
-            <button type="button" class="mobile-tab-pill ${state.adminTab === n.id ? 'active' : ''}" onclick="switchAdminTab('${n.id}')">
-              <span>${n.icon}</span><span>${n.label}</span>
-            </button>
-          `).join('')}
         </div>
 
         <div class="dashboard-topbar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
