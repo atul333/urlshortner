@@ -240,6 +240,11 @@ CREATE INDEX IF NOT EXISTS audit_logs_created_idx ON audit_logs (created_at DESC
     version: 2,
     name: 'user_api_token',
     sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS api_token VARCHAR(80);`
+  },
+  {
+    version: 3,
+    name: 'unlimited_unlock_defaults',
+    sql: `DELETE FROM settings WHERE (key = 'unlock_validity_hours' AND value = '24') OR (key = 'max_opens_per_payment' AND value = '10');`
   }
 ];
 

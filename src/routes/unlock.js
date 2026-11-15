@@ -131,19 +131,18 @@ router.get('/api/unlock/:alias', visitor, rate.limit({ name: 'unlock-view', max:
     diff
   }, 900);
 
-  // Note: NEVER include destination_url in this response!
+  // Note: NEVER include destination_url or creator identity in this response!
   res.json({
     site_name: s.site_name,
     alias: link.alias,
     title: link.title || `Protected Resource (${link.alias})`,
     price_rupees: link.price_rupees,
-    creator_username: link.creator_username,
     unlocks: link.unlocks,
     unlock_validity_hours: s.unlock_validity_hours,
     max_opens_per_payment: s.max_opens_per_payment,
     payments_enabled: razorpay.isConfigured(),
     already_unlocked: Boolean(existing),
-    opens_remaining: existing ? Math.max(0, s.max_opens_per_payment - existing.unlock_opens) : 0,
+    opens_remaining: !existing ? 0 : (s.max_opens_per_payment > 0 ? Math.max(0, s.max_opens_per_payment - existing.unlock_opens) : null),
     unlock_expires_at: existing?.unlock_expires_at || null,
     challenge: {
       gate_token: gateToken,

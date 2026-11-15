@@ -16,8 +16,8 @@ const DEFAULTS = {
   withdrawal_commission_percent: { type: 'number', value: 0, min: 0, max: 50 },
   min_withdrawal_rupees: { type: 'int', value: 100, min: 1, max: 1000000 },
   referral_percent: { type: 'number', value: 0, min: 0, max: 50 },
-  unlock_validity_hours: { type: 'int', value: 24, min: 1, max: 8760 },
-  max_opens_per_payment: { type: 'int', value: 10, min: 1, max: 1000 },
+  unlock_validity_hours: { type: 'int', value: 0, min: 0, max: 8760 },
+  max_opens_per_payment: { type: 'int', value: 0, min: 0, max: 10000 },
   registrations_open: { type: 'bool', value: true },
   show_public_stats: { type: 'bool', value: true },
   announcement: { type: 'string', value: '', max: 500 }

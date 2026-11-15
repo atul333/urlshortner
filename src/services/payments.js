@@ -39,7 +39,7 @@ async function markPaid(paymentRow, rzpPaymentId, via) {
     const { rows } = await t.query(
       `UPDATE payments
           SET status = 'paid', rzp_payment_id = $2, paid_via = $3, paid_at = now(), updated_at = now(),
-              unlock_expires_at = now() + make_interval(hours => $4::int)
+              unlock_expires_at = CASE WHEN $4::int > 0 THEN now() + make_interval(hours => $4::int) ELSE NULL END
         WHERE id = $1 AND status IN ('created', 'failed')
         RETURNING *`,
       [paymentRow.id, rzpPaymentId, via, s.unlock_validity_hours]
@@ -115,9 +115,10 @@ async function findActivePurchase(linkId, visitorHash) {
   return db.one(
     `SELECT * FROM payments
       WHERE link_id = $1 AND visitor_hash = $2 AND status = 'paid'
-        AND unlock_expires_at > now() AND unlock_opens < $3
+        AND ($4::boolean OR unlock_expires_at IS NULL OR unlock_expires_at > now())
+        AND ($3::int <= 0 OR unlock_opens < $3::int)
       ORDER BY paid_at DESC LIMIT 1`,
-    [linkId, visitorHash, s.max_opens_per_payment]
+    [linkId, visitorHash, s.max_opens_per_payment, s.unlock_validity_hours <= 0]
   );
 }
 
@@ -144,9 +145,11 @@ async function consumeAccessToken(token, visitorHash) {
       `UPDATE payments p
           SET access_token_hash = NULL, unlock_opens = p.unlock_opens + 1, updated_at = now()
         WHERE p.access_token_hash = $1 AND p.access_token_expires_at > now() AND p.visitor_hash = $2
-          AND p.status = 'paid' AND p.unlock_expires_at > now() AND p.unlock_opens < $3
+          AND p.status = 'paid'
+          AND ($4::boolean OR p.unlock_expires_at IS NULL OR p.unlock_expires_at > now())
+          AND ($3::int <= 0 OR p.unlock_opens < $3::int)
         RETURNING p.link_id`,
-      [sha256(token), visitorHash, s.max_opens_per_payment]
+      [sha256(token), visitorHash, s.max_opens_per_payment, s.unlock_validity_hours <= 0]
     );
     if (!rows[0]) return null;
     const link = await t.query(

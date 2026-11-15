@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b1120" />
   <meta name="referrer" content="no-referrer" />
   <title>Unlock Link — SocialAdLinker</title>
-  <link rel="stylesheet" href="/styles.css?v=20261115c" />
+  <link rel="stylesheet" href="/styles.css?v=20261115e" />
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <style>
     body {
@@ -253,18 +253,41 @@
       `;
     }
 
+    function formatAccessSummary(data) {
+      const hrs = Number(data?.unlock_validity_hours || 0);
+      const opens = Number(data?.max_opens_per_payment || 0);
+      if (hrs <= 0 && opens <= 0) return 'Pay once for unlimited access in this browser.';
+      if (hrs > 0 && opens <= 0) return `Pay once for instant access (${hrs}h window, unlimited opens in this browser).`;
+      if (hrs <= 0 && opens > 0) return `Pay once for instant access (up to ${opens} opens in this browser).`;
+      return `Pay once for instant access (${hrs}h window, up to ${opens} opens in this browser).`;
+    }
+
+    function formatUnlockedWindowNote(data) {
+      const hrs = Number(data?.unlock_validity_hours || 0);
+      const opens = Number(data?.max_opens_per_payment || 0);
+      if (hrs <= 0 && opens <= 0) return 'Unlimited access saved in this browser session';
+      if (hrs > 0 && opens <= 0) return `Valid for ${hrs}h with unlimited opens in this browser session`;
+      if (hrs <= 0 && opens > 0) return `Up to ${opens} opens saved in this browser session`;
+      return `Valid for ${hrs}h (up to ${opens} opens in this browser session)`;
+    }
+
     function renderAlreadyUnlocked(data) {
       const box = document.getElementById('unlockCardContainer');
+      const opensPill = data.opens_remaining === null || data.opens_remaining === undefined
+        ? 'Unlimited Access'
+        : `${esc(data.opens_remaining)} opens remaining`;
+      const bodyText = Number(data.unlock_validity_hours || 0) > 0
+        ? `You already unlocked this link within the ${esc(data.unlock_validity_hours)}-hour access window. Click below to open the final link.`
+        : 'You already unlocked this link in this browser. Click below to open the final link anytime.';
       box.innerHTML = `
         <div class="trust-strip">
           <span class="trust-pill">✓ Payment Already Verified</span>
-          <span class="trust-pill">${data.opens_remaining} opens remaining</span>
+          <span class="trust-pill">${opensPill}</span>
         </div>
         <div style="text-align:center;">
-          <div style="font-size:0.8rem; font-weight:700; color:#4f46e5; text-transform:uppercase;">Shared by @${esc(data.creator_username)}</div>
-          <h1 style="font-size:1.4rem; font-weight:800; margin:0.35rem 0 0.75rem; word-break:break-word;">${esc(data.title)}</h1>
+          <h1 style="font-size:1.4rem; font-weight:800; margin:0.2rem 0 0.75rem; word-break:break-word;">${esc(data.title)}</h1>
           <p style="font-size:0.88rem; color:#64748b; margin-bottom:1.25rem;">
-            You already unlocked this link within the ${data.unlock_validity_hours}-hour access window. Click below to open the destination securely.
+            ${bodyText}
           </p>
         </div>
         <div id="gateErr" style="display:none; background:#fee2e2; color:#b91c1c; padding:0.75rem; border-radius:9px; font-size:0.86rem; margin-bottom:1rem; font-weight:600;"></div>
@@ -287,10 +310,7 @@
         </div>
 
         <div style="text-align:center;">
-          <div style="font-size:0.8rem; font-weight:700; color:#4f46e5; text-transform:uppercase; letter-spacing:0.05em;">
-            Creator: @${esc(data.creator_username)}
-          </div>
-          <h1 style="font-size:1.4rem; font-weight:800; color:#0f172a; margin-top:0.3rem; word-break:break-word;">
+          <h1 style="font-size:1.4rem; font-weight:800; color:#0f172a; margin-top:0.2rem; word-break:break-word;">
             ${esc(data.title)}
           </h1>
           <div class="unlock-meta" style="font-size:0.82rem; color:#64748b; margin-top:0.25rem;">
@@ -304,7 +324,7 @@
           </div>
           <div class="price-tag-big">₹${data.price_rupees}</div>
           <div style="font-size:0.82rem; color:#64748b; margin-top:0.45rem;">
-            Pay once for instant access (${data.unlock_validity_hours}h window, up to ${data.max_opens_per_payment} opens in this browser).
+            ${esc(formatAccessSummary(data))}
           </div>
         </div>
 
@@ -507,10 +527,8 @@
 
       const box = document.getElementById('unlockCardContainer');
       const linkTitle = linkData ? linkData.title : 'Protected Link';
-      const creator = linkData ? linkData.creator_username : '';
       const paidAmt = linkData ? linkData.price_rupees : '';
-      const validHrs = linkData ? linkData.unlock_validity_hours : 24;
-      const maxOpens = linkData ? linkData.max_opens_per_payment : 5;
+      const footerNote = formatUnlockedWindowNote(linkData);
 
       box.innerHTML = `
         <div class="trust-strip">
@@ -521,8 +539,7 @@
 
         <div style="text-align:center;">
           <div style="width:58px; height:58px; border-radius:50%; background:#dcfce7; color:#15803d; display:inline-flex; align-items:center; justify-content:center; font-size:1.75rem; font-weight:900; margin-bottom:0.85rem;">✓</div>
-          ${creator ? `<div style="font-size:0.8rem; font-weight:700; color:#4f46e5; text-transform:uppercase; letter-spacing:0.05em;">Creator: @${esc(creator)}</div>` : ''}
-          <h1 style="font-size:1.4rem; font-weight:800; color:#0f172a; margin:0.35rem 0 0.5rem; word-break:break-word;">${esc(linkTitle)}</h1>
+          <h1 style="font-size:1.4rem; font-weight:800; color:#0f172a; margin:0.2rem 0 0.5rem; word-break:break-word;">${esc(linkTitle)}</h1>
           <p style="color:#475569; font-size:0.93rem; margin-bottom:1.35rem;">
             Payment verified! Click the <strong>Get Link</strong> button below to open your final link.
           </p>
@@ -535,7 +552,7 @@
         </button>
 
         <div class="unlock-footer-row" style="justify-content:center; text-align:center;">
-          <span>Valid for ${esc(validHrs)}h (up to ${esc(maxOpens)} opens in this browser session)</span>
+          <span>${esc(footerNote)}</span>
         </div>
       `;
     }

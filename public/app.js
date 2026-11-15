@@ -18,8 +18,8 @@ const state = {
     withdrawal_commission_percent: 0,
     min_withdrawal_rupees: 100,
     referral_percent: 0,
-    unlock_validity_hours: 24,
-    max_opens_per_payment: 10,
+    unlock_validity_hours: 0,
+    max_opens_per_payment: 0,
     registrations_open: true,
     show_public_stats: true,
     announcement: ''
@@ -76,6 +76,15 @@ function esc(v) {
 function fmtINR(val) {
   const n = Number(val) || 0;
   return '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: n % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 });
+}
+
+function formatUnlockAccessCopy(s) {
+  const hrs = Number(s?.unlock_validity_hours || 0);
+  const opens = Number(s?.max_opens_per_payment || 0);
+  if (hrs <= 0 && opens <= 0) return 'unlimited access';
+  if (hrs > 0 && opens <= 0) return `${hrs} hours (unlimited opens)`;
+  if (hrs <= 0 && opens > 0) return `up to ${opens} opens`;
+  return `${hrs} hours (up to ${opens} opens)`;
 }
 
 function fmtDate(iso) {
@@ -627,7 +636,7 @@ function renderHomePage() {
         </details>
         <details class="faq-item">
           <summary>If a user already paid, do they have to pay again on refresh?</summary>
-          <p>No. Verified buyers automatically keep access in their browser session for <strong>${s.unlock_validity_hours} hours</strong> (up to ${s.max_opens_per_payment} opens) without being charged again, while preventing leaked links from working on other people's devices.</p>
+          <p>No. Verified buyers automatically keep <strong>${formatUnlockAccessCopy(s)}</strong> in their browser session without being charged again, while preventing leaked links from working on other people's devices.</p>
         </details>
       </div>
     </section>
@@ -660,7 +669,7 @@ function renderBlogPage() {
       paragraphs: [
         'Many link shorteners expose the final destination inside client JavaScript or predictable query parameters, letting automated scripts extract URLs without completing checkout.',
         'SocialAdLinker keeps every destination URL strictly inside PostgreSQL and verifies Razorpay signatures and captured payment amounts server-to-server before issuing a short-lived single-use /go/:token bound to an httpOnly session cookie.',
-        'Returning buyers automatically retain access in their verified browser session for ' + s.unlock_validity_hours + ' hours (up to ' + s.max_opens_per_payment + ' opens), preventing replay on leaked URLs.'
+        'Returning buyers automatically retain ' + formatUnlockAccessCopy(s) + ' in their verified browser session, preventing replay on leaked URLs.'
       ]
     },
     {
@@ -860,7 +869,7 @@ function renderPrivacyPage() {
         <h3>3. Payment Security &amp; Third-Party Processors</h3>
         <p>All payments are processed securely by Razorpay in accordance with PCI-DSS standards. ${esc(s.site_name)} never collects, views, or stores card numbers, CVVs, or UPI PINs. We do not sell personal data or load third-party ad-tracking networks on our pages.</p>
         <h3>4. Cookies &amp; Session Validity</h3>
-        <p>We use essential <code>httpOnly</code> authentication cookies for logged-in creators and signed unlock session cookies so verified buyers retain access for ${s.unlock_validity_hours} hours without paying again.</p>
+        <p>We use essential <code>httpOnly</code> authentication cookies for logged-in creators and signed unlock session cookies so verified buyers retain ${formatUnlockAccessCopy(s)} in their browser without paying again.</p>
         <h3>5. Data Retention, Deletion &amp; Grievance Contact</h3>
         <p>Payment ledger records are retained as required for accounting, tax, and dispute resolution. For privacy inquiries or account data deletion requests, contact <strong>${esc(s.support_email)}</strong>${s.grievance_officer ? ` (Grievance Officer: ${esc(s.grievance_officer)})` : ''}.</p>
       </div>
@@ -951,7 +960,7 @@ function renderDeliveryPolicyPage() {
         <h2>Digital Delivery Policy</h2>
         <p>${esc(s.company_name || s.site_name)} delivers purely digital URL access — no physical shipping applies.</p>
         <ul>
-          <li><strong>Instant Fulfillment:</strong> Upon successful Razorpay payment verification, the destination link is unlocked immediately in your browser and remains accessible for ${s.unlock_validity_hours} hours (up to ${s.max_opens_per_payment} opens).</li>
+          <li><strong>Instant Fulfillment:</strong> Upon successful Razorpay payment verification, the destination link is unlocked immediately and retains ${formatUnlockAccessCopy(s)} in your browser session.</li>
           <li><strong>Issues Opening a Paid Link:</strong> Contact ${esc(s.support_email)} with the short link alias and your Razorpay Payment ID for immediate assistance.</li>
         </ul>
       </div>
@@ -2362,12 +2371,12 @@ function renderAdminSettings() {
             <input type="number" id="asRefPct" class="form-control" min="0" max="50" step="0.5" value="${s.referral_percent}" required />
           </div>
           <div class="form-group">
-            <label class="form-label">Unlock Validity (Hours)</label>
-            <input type="number" id="asValidHrs" class="form-control" min="1" max="8760" step="1" value="${s.unlock_validity_hours}" required />
+            <label class="form-label">Unlock Validity Hours (0 = Unlimited)</label>
+            <input type="number" id="asValidHrs" class="form-control" min="0" max="8760" step="1" value="${s.unlock_validity_hours}" required />
           </div>
           <div class="form-group">
-            <label class="form-label">Max Opens Per Payment</label>
-            <input type="number" id="asMaxOpens" class="form-control" min="1" max="1000" step="1" value="${s.max_opens_per_payment}" required />
+            <label class="form-label">Max Opens Per Payment (0 = Unlimited)</label>
+            <input type="number" id="asMaxOpens" class="form-control" min="0" max="10000" step="1" value="${s.max_opens_per_payment}" required />
           </div>
           <div class="form-group">
             <label class="form-label">Registrations Open</label>

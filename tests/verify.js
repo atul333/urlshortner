@@ -280,11 +280,15 @@ async function run() {
     const curlAttempt = await curlBot.req(`/api/unlock/${alias}`);
     assert.equal(curlAttempt.status, 403, 'curl scraper must be blocked');
 
-    // 4b. Visitor loads gate -> destination_url NEVER exposed!
+    // 4b. Visitor loads gate -> destination_url and creator username NEVER exposed!
     const visitor = new Client(baseUrl);
     const gate = await visitor.req(`/api/unlock/${alias}`);
     assert.equal(gate.status, 200);
     assert.equal(JSON.stringify(gate.data).includes('secret-course.pdf'), false, 'Destination URL must NEVER be leaked before payment!');
+    assert.equal('creator_username' in gate.data, false, 'Creator username must not be exposed to visitors');
+    assert.equal(JSON.stringify(gate.data).includes('botmaker'), false, 'Creator username must not appear in unlock payload');
+    assert.equal(gate.data.unlock_validity_hours, 0);
+    assert.equal(gate.data.max_opens_per_payment, 0);
     assert.equal(gate.data.price_rupees, 2);
 
     // 4c. Order creation fails without valid gate_token or PoW
@@ -347,9 +351,10 @@ async function run() {
     const replayGo = await visitor.req(goPath);
     assert.equal(replayGo.status, 403, 'One-time token cannot be reused');
 
-    // 4j. Returning to /:alias within unlock window lets payer re-open without paying again
+    // 4j. Returning to /:alias gives payer unlimited opens in same browser without paying again
     const gateAgain = await visitor.req(`/api/unlock/${alias}`);
     assert.equal(gateAgain.data.already_unlocked, true);
+    assert.equal(gateAgain.data.opens_remaining, null, 'Unlimited mode must return null opens_remaining');
     const pow2 = solvePow(gateAgain.data.challenge.pow_prefix, gateAgain.data.challenge.pow_difficulty);
     const reopen = await visitor.req(`/api/unlock/${alias}/reopen`, {
       method: 'POST',
