@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1120" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Unlock Link — SocialAdLinker</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <style>
+    body {
+      background: radial-gradient(circle at 25% 15%, #1e1b4b 0%, #0b1120 60%, #020617 100%);
+      min-height: 100vh;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+    }
+    .unlock-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+    }
+    .unlock-card {
+      background: #ffffff;
+      color: #0f172a;
+      max-width: 480px;
+      width: 100%;
+      border-radius: 20px;
+      padding: 2.1rem;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.48);
+    }
+    .trust-strip {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.25rem;
+    }
+    .trust-pill {
+      background: #ecfdf5;
+      color: #047857;
+      border: 1px solid #a7f3d0;
+      font-size: 0.74rem;
+      font-weight: 700;
+      padding: 0.24rem 0.68rem;
+      border-radius: 999px;
+    }
+    .price-spotlight {
+      background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+      border: 2px solid #c7d2fe;
+      border-radius: 16px;
+      padding: 1.35rem;
+      text-align: center;
+      margin: 1.3rem 0;
+    }
+    .price-tag-big {
+      font-size: 2.75rem;
+      font-weight: 900;
+      color: #312e81;
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+    .rzp-pay-btn {
+      width: 100%;
+      padding: 0.98rem 1.4rem;
+      font-size: 1.04rem;
+      font-weight: 800;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+      color: #ffffff;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.55rem;
+      box-shadow: 0 10px 24px rgba(37, 99, 235, 0.35);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .rzp-pay-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 28px rgba(37, 99, 235, 0.45);
+    }
+    .rzp-pay-btn:disabled {
+      opacity: 0.65;
+      cursor: wait;
+      transform: none;
+    }
+    .rzp-pay-btn {
+      min-height: 52px;
+      touch-action: manipulation;
+    }
+    .unlock-card h1, .unlock-meta {
+      overflow-wrap: anywhere;
+    }
+    .unlock-footer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.45rem 0.75rem;
+      margin-top: 1.25rem;
+      padding-top: 0.95rem;
+      border-top: 1px solid #f1f5f9;
+      font-size: 0.78rem;
+      color: #64748b;
+    }
+    @media (max-width: 600px) {
+      .hide-unlock-badge {
+        display: none;
+      }
+      .unlock-navbar .nav-container {
+        gap: 0.65rem;
+      }
+      .unlock-navbar .nav-actions {
+        gap: 0.45rem;
+      }
+      .unlock-navbar .nav-actions .btn {
+        padding: 0.4rem 0.7rem;
+        font-size: 0.78rem;
+      }
+      .unlock-wrapper {
+        padding: 1.2rem 0.75rem;
+      }
+      .unlock-card {
+        padding: 1.4rem 1.1rem;
+        border-radius: 16px;
+      }
+      .price-spotlight {
+        padding: 1.05rem;
+        margin: 1.05rem 0;
+      }
+      .price-tag-big {
+        font-size: 2.3rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="public-navbar unlock-navbar">
+    <div class="nav-container">
+      <a href="/" class="brand-logo" style="text-decoration:none;">
+        <span class="brand-logo-icon">SA</span>
+        <span id="navSiteName">SocialAdLinker</span>
+        <span class="brand-badge hide-unlock-badge">Zero Ads • Direct Unlock</span>
+      </a>
+      <div class="nav-actions">
+        <a href="/report" class="btn btn-sm btn-ghost-light">Report Link</a>
+        <a href="/register" class="btn btn-sm btn-emerald">Monetize Links</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="unlock-wrapper">
+    <div class="unlock-card" id="unlockCardContainer">
+      <div style="text-align:center; padding: 2rem 0; color:#64748b;">
+        Verifying protected link...
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const alias = window.location.pathname.split('/').filter(Boolean)[0] || '';
+    let linkData = null;
+    let solvedChallenge = null;
+    let statusPollTimer = null;
+
+    function esc(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // Solve lightweight Proof-of-Work challenge via WebCrypto (takes ~15-30ms in real browsers)
+    async function solvePow(prefix, difficulty) {
+      const target = '0'.repeat(difficulty || 3);
+      const encoder = new TextEncoder();
+      for (let i = 0; i < 1000000; i++) {
+        const buf = await crypto.subtle.digest('SHA-256', encoder.encode(prefix + ':' + i));
+        const bytes = new Uint8Array(buf);
+        let hex = '';
+        for (let b = 0; b < Math.ceil(target.length / 2); b++) {
+          hex += bytes[b].toString(16).padStart(2, '0');
+        }
+        if (hex.startsWith(target)) return String(i);
+      }
+      return '0';
+    }
+
+    async function loadGate() {
+      const box = document.getElementById('unlockCardContainer');
+      if (!alias) {
+        box.innerHTML = renderError('Link Not Found', 'No link alias was provided.');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/unlock/${encodeURIComponent(alias)}`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) {
+          box.innerHTML = renderError('Link Unavailable', data.error || 'This protected link could not be loaded.');
+          return;
+        }
+        linkData = data;
+        document.getElementById('navSiteName').textContent = data.site_name || 'SocialAdLinker';
+        document.title = `${data.title} — Unlock for ₹${data.price_rupees} | ${data.site_name}`;
+
+        const powSolution = await solvePow(data.challenge.pow_prefix, data.challenge.pow_difficulty);
+        solvedChallenge = {
+          gate_token: data.challenge.gate_token,
+          pow_solution: powSolution
+        };
+
+        if (data.already_unlocked) {
+          renderAlreadyUnlocked(data);
+        } else {
+          renderPayGate(data);
+        }
+      } catch (err) {
+        box.innerHTML = renderError('Connection Error', 'Unable to verify this protected link. Please refresh the page.');
+      }
+    }
+
+    function renderError(title, msg) {
+      return `
+        <div style="text-align:center; padding: 1rem 0;">
+          <div style="width:54px; height:54px; border-radius:50%; background:#fee2e2; color:#dc2626; display:inline-flex; align-items:center; justify-content:center; font-size:1.5rem; font-weight:800; margin-bottom:0.9rem;">!</div>
+          <h2 style="font-size:1.35rem; font-weight:800; margin-bottom:0.45rem;">${esc(title)}</h2>
+          <p style="color:#64748b; margin-bottom:1.4rem;">${esc(msg)}</p>
+          <a href="/" class="btn btn-primary">Back to SocialAdLinker</a>
+        </div>
+      `;
+    }
+
+    function renderAlreadyUnlocked(data) {
+      const box = document.getElementById('unlockCardContainer');
+      box.innerHTML = `
+        <div class="trust-strip">
+          <span class="trust-pill">✓ Payment Already Verified</span>
+          <span class="trust-pill">${data.opens_remaining} opens remaining</span>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:0.8rem; font-weight:700; color:#4f46e5; text-transform:uppercase;">Shared by @${esc(data.creator_username)}</div>
+          <h1 style="font-size:1.4rem; font-weight:800; margin:0.35rem 0 0.75rem; word-break:break-word;">${esc(data.title)}</h1>
+          <p style="font-size:0.88rem; color:#64748b; margin-bottom:1.25rem;">
+            You already unlocked this link within the ${data.unlock_validity_hours}-hour access window. Click below to open the destination securely.
+          </p>
+        </div>
+        <div id="gateErr" style="display:none; background:#fee2e2; color:#b91c1c; padding:0.75rem; border-radius:9px; font-size:0.86rem; margin-bottom:1rem; font-weight:600;"></div>
+        <button type="button" class="btn btn-emerald btn-lg" style="width:100%;" id="reopenBtn" onclick="reopenUnlocked()">
+          Continue to Final Link ↗
+        </button>
+      `;
+    }
+
+    function renderPayGate(data) {
+      const box = document.getElementById('unlockCardContainer');
+      const disabledMsg = !data.payments_enabled
+        ? '<div style="background:#fef3c7; color:#92400e; padding:0.75rem; border-radius:9px; font-size:0.84rem; margin-bottom:1rem; font-weight:600;">Payment gateway keys are not configured on this server yet.</div>'
+        : '';
+      box.innerHTML = `
+        <div class="trust-strip">
+          <span class="trust-pill">✓ Zero Ads</span>
+          <span class="trust-pill">✓ No Popups or Timers</span>
+          <span class="trust-pill">✓ Instant UPI / Card Unlock</span>
+        </div>
+
+        <div style="text-align:center;">
+          <div style="font-size:0.8rem; font-weight:700; color:#4f46e5; text-transform:uppercase; letter-spacing:0.05em;">
+            Creator: @${esc(data.creator_username)}
+          </div>
+          <h1 style="font-size:1.4rem; font-weight:800; color:#0f172a; margin-top:0.3rem; word-break:break-word;">
+            ${esc(data.title)}
+          </h1>
+          <div class="unlock-meta" style="font-size:0.82rem; color:#64748b; margin-top:0.25rem;">
+            ${esc(window.location.host)}/${esc(data.alias)} • ${data.unlocks.toLocaleString('en-IN')} Verified Unlocks
+          </div>
+        </div>
+
+        <div class="price-spotlight">
+          <div style="font-size:0.76rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:#475569; margin-bottom:0.35rem;">
+            Direct Access Fee
+          </div>
+          <div class="price-tag-big">₹${data.price_rupees}</div>
+          <div style="font-size:0.82rem; color:#64748b; margin-top:0.45rem;">
+            Pay once for instant access (${data.unlock_validity_hours}h window, up to ${data.max_opens_per_payment} opens in this browser).
+          </div>
+        </div>
+
+        ${disabledMsg}
+        <div id="gateErr" style="display:none; background:#fee2e2; color:#b91c1c; padding:0.75rem; border-radius:9px; font-size:0.86rem; margin-bottom:1rem; font-weight:600;"></div>
+
+        <button type="button" class="rzp-pay-btn" id="payUnlockBtn" onclick="startRazorpayPayment()" ${!data.payments_enabled ? 'disabled' : ''}>
+          <span>🔒 Pay ₹${data.price_rupees} &amp; Unlock Link</span>
+        </button>
+
+        <div class="unlock-footer-row">
+          <span>UPI • GPay • PhonePe • Paytm • Cards</span>
+          <a href="/report?alias=${encodeURIComponent(data.alias)}" style="color:#64748b;">Report Link</a>
+        </div>
+      `;
+    }
+
+    function showErr(msg) {
+      const el = document.getElementById('gateErr');
+      if (el) {
+        el.textContent = msg;
+        el.style.display = 'block';
+      }
+    }
+
+    async function reopenUnlocked() {
+      const btn = document.getElementById('reopenBtn');
+      btn.disabled = true;
+      btn.textContent = 'Generating secure redirect...';
+      try {
+        const res = await fetch(`/api/unlock/${encodeURIComponent(alias)}/reopen`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(solvedChallenge)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not reopen link.');
+        window.location.href = data.redirect_url;
+      } catch (err) {
+        showErr(err.message);
+        btn.disabled = false;
+        btn.textContent = 'Continue to Final Link ↗';
+      }
+    }
+
+    async function startRazorpayPayment() {
+      const btn = document.getElementById('payUnlockBtn');
+      const errBox = document.getElementById('gateErr');
+      if (errBox) errBox.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Initializing Razorpay Checkout...';
+
+      try {
+        const orderRes = await fetch(`/api/unlock/${encodeURIComponent(alias)}/order`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(solvedChallenge)
+        });
+        const order = await orderRes.json();
+        if (!orderRes.ok) throw new Error(order.error || 'Failed to create payment order.');
+
+        if (!window.Razorpay) throw new Error('Razorpay Checkout failed to load. Check ad-blocker or network and refresh.');
+
+        // Background webhook poll fallback in case UPI QR completes asynchronously
+        statusPollTimer = setInterval(async () => {
+          try {
+            const st = await fetch(`/api/unlock/${encodeURIComponent(alias)}/status?order_id=${encodeURIComponent(order.order_id)}`, { credentials: 'same-origin' });
+            const sd = await st.json();
+            if (sd.unlocked && sd.redirect_url) {
+              clearInterval(statusPollTimer);
+              renderRedirecting(sd.redirect_url);
+            }
+          } catch {}
+        }, 3000);
+
+        const rzp = new window.Razorpay({
+          key: order.key_id,
+          amount: order.amount_paise,
+          currency: order.currency,
+          name: order.site_name || 'SocialAdLinker',
+          description: `Direct Unlock: ${order.title}`,
+          order_id: order.order_id,
+          handler: async function (response) {
+            clearInterval(statusPollTimer);
+            btn.textContent = 'Verifying payment securely...';
+            try {
+              const verRes = await fetch(`/api/unlock/${encodeURIComponent(alias)}/verify`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature
+                })
+              });
+              const ver = await verRes.json();
+              if (!verRes.ok) throw new Error(ver.error || 'Payment verification failed.');
+              renderRedirecting(ver.redirect_url);
+            } catch (err) {
+              showErr(err.message);
+              btn.disabled = false;
+              btn.innerHTML = `<span>🔒 Pay ₹${linkData.price_rupees} &amp; Unlock Link</span>`;
+            }
+          },
+          modal: {
+            ondismiss: function () {
+              clearInterval(statusPollTimer);
+              btn.disabled = false;
+              btn.innerHTML = `<span>🔒 Pay ₹${linkData.price_rupees} &amp; Unlock Link</span>`;
+            }
+          },
+          theme: { color: '#4f46e5' }
+        });
+
+        rzp.on('payment.failed', function (resp) {
+          clearInterval(statusPollTimer);
+          showErr(resp.error?.description || 'Payment failed. You were not charged.');
+          btn.disabled = false;
+          btn.innerHTML = `<span>🔒 Pay ₹${linkData.price_rupees} &amp; Unlock Link</span>`;
+        });
+
+        rzp.open();
+      } catch (err) {
+        clearInterval(statusPollTimer);
+        showErr(err.message);
+        btn.disabled = false;
+        btn.innerHTML = `<span>🔒 Pay ₹${linkData.price_rupees} &amp; Unlock Link</span>`;
+      }
+    }
+
+    function renderRedirecting(redirectUrl) {
+      const box = document.getElementById('unlockCardContainer');
+      box.innerHTML = `
+        <div style="text-align:center; padding: 1.5rem 0;">
+          <div style="width:58px; height:58px; border-radius:50%; background:#dcfce7; color:#15803d; display:inline-flex; align-items:center; justify-content:center; font-size:1.75rem; font-weight:900; margin-bottom:0.9rem;">✓</div>
+          <h2 style="font-size:1.4rem; font-weight:800; color:#0f172a; margin-bottom:0.4rem;">Payment Verified!</h2>
+          <p style="color:#64748b; font-size:0.92rem; margin-bottom:1.4rem;">Redirecting you to the final destination now...</p>
+          <a href="${esc(redirectUrl)}" rel="noreferrer" class="btn btn-emerald btn-lg" style="width:100%;">Open Destination Link Now ↗</a>
+        </div>
+      `;
+      setTimeout(() => { window.location.href = redirectUrl; }, 550);
+    }
+
+    loadGate();
+  </script>
+</body>
+</html>
+

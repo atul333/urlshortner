@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: socialadlinker
+      POSTGRES_USER: socialadlinker
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_pg_password}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U socialadlinker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://socialadlinker:${POSTGRES_PASSWORD:-change_me_pg_password}@postgres:5432/socialadlinker
+      DATABASE_SSL: "false"
+
+volumes:
+  pgdata:
+
