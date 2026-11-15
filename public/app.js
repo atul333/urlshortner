@@ -55,8 +55,7 @@ const state = {
   adminReports: { reports: [], contacts: [] },
   adminTickets: [],
   adminLogs: [],
-  calcPrice: 2,
-  calcClicks: 1000,
+  activeBlogId: null,
   devLang: 'python',
   mobileMenuOpen: false,
   mobileSidebarOpen: false
@@ -182,13 +181,14 @@ window.addEventListener('keydown', (e) => {
 
 const ROUTE_PATHS = {
   home: '/',
-  pricing: '/pricing',
+  blog: '/blog',
   developers: '/developers',
   'payment-proof': '/payment-proof',
   about: '/about',
   contact: '/contact',
   terms: '/terms',
-  privacy: '/privacy',
+  privacy: '/privacy-policy',
+  dmca: '/dmca',
   'refund-policy': '/refund-policy',
   'delivery-policy': '/delivery-policy',
   report: '/report',
@@ -203,6 +203,8 @@ const ROUTE_PATHS = {
 function pathToRoute(pathname) {
   const clean = pathname.replace(/^\/+|\/+$/g, '');
   if (!clean) return 'home';
+  if (clean === 'pricing') return 'home';
+  if (clean === 'privacy' || clean === 'privacy-policy') return 'privacy';
   if (clean === 'developer-api') return 'developers';
   if (clean === 'payment-proofs') return 'payment-proof';
   if (clean === 'report-abuse') return 'report';
@@ -426,8 +428,10 @@ function renderPublicNavbar() {
         <div class="nav-collapse ${state.mobileMenuOpen ? 'open' : ''}">
           <nav class="nav-links">
             <span class="nav-link ${state.route === 'home' ? 'active' : ''}" onclick="navigate('home')">Home</span>
-            <span class="nav-link ${state.route === 'pricing' ? 'active' : ''}" onclick="navigate('pricing')">Pricing &amp; CPM</span>
+            <span class="nav-link ${state.route === 'blog' ? 'active' : ''}" onclick="state.activeBlogId=null; navigate('blog')">Blog</span>
             <span class="nav-link ${state.route === 'payment-proof' ? 'active' : ''}" onclick="navigate('payment-proof')">Payouts</span>
+            <span class="nav-link ${state.route === 'privacy' ? 'active' : ''}" onclick="navigate('privacy')">Privacy Policy</span>
+            <span class="nav-link ${state.route === 'dmca' ? 'active' : ''}" onclick="navigate('dmca')">DMCA</span>
             <span class="nav-link ${state.route === 'contact' ? 'active' : ''}" onclick="navigate('contact')">Contact</span>
           </nav>
 
@@ -450,12 +454,13 @@ function renderPublicNavbar() {
 function renderPublicLayout() {
   let body = '';
   switch (state.route) {
-    case 'pricing': body = renderPricingPage(); break;
+    case 'blog': body = renderBlogPage(); break;
     case 'payment-proof': body = renderPaymentProofPage(); break;
     case 'about': body = renderAboutPage(); break;
     case 'contact': body = renderContactPage(); break;
     case 'terms': body = renderTermsPage(); break;
     case 'privacy': body = renderPrivacyPage(); break;
+    case 'dmca': body = renderDmcaPage(); break;
     case 'refund-policy': body = renderRefundPolicyPage(); break;
     case 'delivery-policy': body = renderDeliveryPolicyPage(); break;
     case 'report': body = renderReportPage(); break;
@@ -494,7 +499,7 @@ function renderHomePage() {
             <button class="btn btn-ghost-light btn-lg" onclick="navigate('member', 'links')">Create Short Link</button>
           ` : `
             <button class="btn btn-emerald btn-lg" onclick="navigate('register')">Create Free Creator Account →</button>
-            <button class="btn btn-ghost-light btn-lg" onclick="navigate('pricing')">View Pricing &amp; CPM</button>
+            <button class="btn btn-ghost-light btn-lg" onclick="navigate('payment-proof')">View Verified Payouts</button>
           `}
         </div>
 
@@ -634,95 +639,98 @@ function renderHomePage() {
   `;
 }
 
-function renderPricingPage() {
+function renderBlogPage() {
   const s = state.settings;
-  const price = state.calcPrice;
-  const clicks = state.calcClicks;
-  const gross = price * clicks;
-  const commPct = s.withdrawal_commission_percent;
-  const commAmt = +(gross * commPct / 100).toFixed(2);
-  const net = +(gross - commAmt).toFixed(2);
+  const posts = [
+    {
+      id: 'direct-upi-vs-ads',
+      tag: 'Monetization',
+      date: 'November 2026',
+      readTime: '4 min read',
+      title: 'Why Direct UPI Link Unlocking Beats Pop-Up Ad Shorteners',
+      excerpt: 'Traditional URL shorteners force visitors through 4–6 ad countdown pages while paying creators pennies per 1,000 clicks. Direct whole-rupee unlock gates flip that math.',
+      paragraphs: [
+        'Traditional ad-supported shorteners rely on aggressive redirects, fake download buttons, and cookie-heavy ad scripts that frustrate genuine followers and damage creator trust.',
+        'With SocialAdLinker, creators set a clean whole-rupee price starting from ₹' + s.min_price_rupees + ' (₹1, ₹2, ₹5, ₹10...). Visitors pay once using UPI, QR, or Cards via Razorpay and reach the destination link in seconds without seeing a single pop-up.',
+        'Every verified unlock credits your creator wallet ledger immediately, and once you reach ' + fmtINR(s.min_withdrawal_rupees) + ' you can request a collective payout directly to your UPI ID or Bank Account.'
+      ]
+    },
+    {
+      id: 'anti-bypass-security',
+      tag: 'Security',
+      date: 'November 2026',
+      readTime: '3 min read',
+      title: 'How Server-Side Token Binding Stops Link Scrapers & Bypassers',
+      excerpt: 'How SocialAdLinker protects creators’ destination links using database isolation, proof-of-work challenges, and single-use burnable redirect tokens.',
+      paragraphs: [
+        'Many link shorteners expose the final destination inside client JavaScript or predictable query parameters, letting automated scripts extract URLs without completing checkout.',
+        'SocialAdLinker keeps every destination URL strictly inside PostgreSQL and verifies Razorpay signatures and captured payment amounts server-to-server before issuing a short-lived single-use /go/:token bound to an httpOnly session cookie.',
+        'Returning buyers automatically retain access in their verified browser session for ' + s.unlock_validity_hours + ' hours (up to ' + s.max_opens_per_payment + ' opens), preventing replay on leaked URLs.'
+      ]
+    },
+    {
+      id: 'creator-checklist',
+      tag: 'Creator Guide',
+      date: 'November 2026',
+      readTime: '5 min read',
+      title: 'Best Practices to Boost Unlocks on Notes, PDFs & Community Links',
+      excerpt: 'Practical tips for setting the right whole-rupee unlock price, writing clear titles, and managing links at scale with Mass Shrinker.',
+      paragraphs: [
+        'Give every paid link a descriptive title inside your Creator Dashboard so buyers immediately understand what they are unlocking at checkout (for example, "UI Design System Kit v3 — Figma + Assets").',
+        'Start everyday downloads at ₹' + s.default_price_rupees + '–₹5 for high impulse conversion, and use higher whole-rupee tiers (₹20, ₹50+) for premium packs, templates, and tutorials.',
+        'Need to convert dozens of links at once? Use Mass Shrinker in your dashboard to batch-shorten up to 50 URLs with consistent whole-rupee pricing.'
+      ]
+    }
+  ];
+
+  const active = posts.find((p) => p.id === state.activeBlogId);
 
   return `
     <section class="section-container">
       <div class="section-header">
-        <span class="section-tag">Transparent Earnings</span>
-        <h2 class="section-title">Creator-Controlled CPM &amp; Payout Calculator</h2>
+        <span class="section-tag">SocialAdLinker Blog</span>
+        <h2 class="section-title">Creator Guides, Product Updates &amp; Security Insights</h2>
         <p style="color:var(--text-muted); margin-top:0.5rem;">
-          You decide what every link costs in whole rupees (minimum ₹${s.min_price_rupees}). Visitors pay zero ad-wall frustration; you earn up to 100× more than traditional ad shorteners.
+          Learn how to monetize exclusive resources cleanly without intrusive ads.
         </p>
       </div>
 
-      <div class="card" style="max-width:860px; margin:0 auto 2rem;">
-        <div class="card-header">
-          <div class="card-title">Live Earnings Estimator</div>
-          <span class="badge badge-indigo">Withdrawal Commission: ${commPct}%</span>
-        </div>
-        <div class="grid-2" style="margin-bottom:1.25rem;">
-          <div class="form-group">
-            <label class="form-label">Price Per Link (Whole ₹: 1, 2, 3...)</label>
-            <input type="number" class="form-control" min="${s.min_price_rupees}" max="${s.max_price_rupees}" step="1" value="${price}" oninput="updateCalc('price', this.value)" />
+      ${active ? `
+        <div class="prose-card" style="margin-bottom:2rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:1rem;">
+            <button type="button" class="btn btn-sm btn-outline" onclick="state.activeBlogId=null; render(); window.scrollTo(0,0);">← All Articles</button>
+            <span class="badge badge-indigo">${esc(active.tag)} • ${esc(active.readTime)}</span>
           </div>
-          <div class="form-group">
-            <label class="form-label">Paid Unlocks</label>
-            <input type="number" class="form-control" min="1" step="1" value="${clicks}" oninput="updateCalc('clicks', this.value)" />
-          </div>
-        </div>
-        <div class="kpi-grid" style="margin-bottom:0;">
-          <div class="kpi-card indigo">
-            <div class="kpi-label">Effective CPM</div>
-            <div class="kpi-value">${fmtINR(price * 1000)}</div>
-            <div class="kpi-sub">Per 1,000 unlocks</div>
-          </div>
-          <div class="kpi-card emerald">
-            <div class="kpi-label">Wallet Credit</div>
-            <div class="kpi-value">${fmtINR(gross)}</div>
-            <div class="kpi-sub">${clicks.toLocaleString('en-IN')} × ₹${price}</div>
-          </div>
-          <div class="kpi-card amber">
-            <div class="kpi-label">Platform Fee (${commPct}%)</div>
-            <div class="kpi-value">${fmtINR(commAmt)}</div>
-            <div class="kpi-sub">Applied only on withdrawal</div>
-          </div>
-          <div class="kpi-card cyan">
-            <div class="kpi-label">Net Payout</div>
-            <div class="kpi-value">${fmtINR(net)}</div>
-            <div class="kpi-sub">Via UPI / Bank Transfer</div>
+          <h2 style="margin-bottom:0.4rem;">${esc(active.title)}</h2>
+          <p style="color:var(--text-muted); font-size:0.86rem; margin-bottom:1.25rem;">Published ${esc(active.date)} by SocialAdLinker Team</p>
+          ${active.paragraphs.map((para) => `<p>${esc(para)}</p>`).join('')}
+          <div style="margin-top:1.75rem; padding-top:1.15rem; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+            <span style="color:var(--text-muted); font-size:0.9rem;">Ready to monetize your links without ads?</span>
+            <button type="button" class="btn btn-emerald" onclick="navigate('${state.user ? 'member' : 'register'}')">${state.user ? 'Open Dashboard →' : 'Create Free Account →'}</button>
           </div>
         </div>
-      </div>
-
-      <div class="card" style="max-width:860px; margin:0 auto;">
-        <div class="card-header"><div class="card-title">Whole-Rupee Link Pricing Reference</div></div>
-        <div class="table-responsive">
-          <table>
-            <thead>
-              <tr><th>Link Price</th><th>Effective CPM</th><th>Withdrawal Fee (${commPct}%)</th><th>Net Per 1,000 Unlocks</th></tr>
-            </thead>
-            <tbody>
-              ${[1, 2, 3, 5, 10, 25, 50].map((p) => {
-                const g = p * 1000;
-                const n = +(g - g * commPct / 100).toFixed(2);
-                return `<tr>
-                  <td><strong>₹${p}</strong> ${p === s.default_price_rupees ? '<span class="badge badge-success">Default</span>' : ''}</td>
-                  <td>${fmtINR(g)}</td>
-                  <td>${fmtINR(+(g * commPct / 100).toFixed(2))}</td>
-                  <td><strong style="color:var(--emerald-dark);">${fmtINR(n)}</strong></td>
-                </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
+      ` : `
+        <div class="grid-3">
+          ${posts.map((p) => `
+            <article class="card" style="display:flex; flex-direction:column; justify-content:space-between; margin-bottom:0;">
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-bottom:0.75rem;">
+                  <span class="badge badge-indigo">${esc(p.tag)}</span>
+                  <span style="font-size:0.8rem; color:var(--text-muted);">${esc(p.readTime)}</span>
+                </div>
+                <h3 style="font-size:1.12rem; font-weight:700; margin-bottom:0.65rem; color:var(--text-main); line-height:1.35;">${esc(p.title)}</h3>
+                <p style="color:var(--text-muted); font-size:0.92rem; line-height:1.6;">${esc(p.excerpt)}</p>
+              </div>
+              <div style="margin-top:1.25rem; display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:0.8rem; color:var(--text-muted);">${esc(p.date)}</span>
+                <button type="button" class="btn btn-sm btn-outline" onclick="state.activeBlogId='${p.id}'; render(); window.scrollTo(0,0);">Read Article →</button>
+              </div>
+            </article>
+          `).join('')}
         </div>
-      </div>
+      `}
     </section>
   `;
-}
-
-function updateCalc(field, val) {
-  const n = Math.max(1, Math.floor(Number(val) || 1));
-  if (field === 'price') state.calcPrice = n;
-  else state.calcClicks = n;
-  render();
 }
 
 function renderPaymentProofPage() {
@@ -844,13 +852,79 @@ function renderPrivacyPage() {
     <section class="section-container">
       <div class="prose-card">
         <h2>Privacy Policy</h2>
-        <p style="color:var(--text-muted);">Effective for ${esc(s.company_name || s.site_name)} (https://www.socialadlinker.com)</p>
+        <p style="color:var(--text-muted);">Last updated: November 2026 • ${esc(s.company_name || s.site_name)} (https://www.socialadlinker.com)</p>
         <h3>1. Information We Collect</h3>
-        <p>For creators, we store account details (username, email, password hash, payout details) and link analytics. For visitors unlocking links, we store an anonymous <code>httpOnly</code> session identifier cookie, hashed IP address, device type, and Razorpay payment/order identifiers strictly to prevent link bypass and handle support/refunds.</p>
-        <h3>2. Payment Security</h3>
-        <p>All payments are processed securely through Razorpay. SocialAdLinker does not store card numbers, CVVs, or UPI PINs.</p>
-        <h3>3. Data Requests &amp; Grievance Officer</h3>
-        <p>Contact ${esc(s.support_email)}${s.grievance_officer ? ` (Grievance Officer: ${esc(s.grievance_officer)})` : ''} for privacy or data deletion requests.</p>
+        <p><strong>Creator Accounts:</strong> When you register or configure payouts, we collect your name, username, email address, hashed password, and optional UPI ID or bank payout details.</p>
+        <p><strong>Visitors Unlocking Links:</strong> When unlocking a paid link, we record your Razorpay payment/order identifiers, a signed anonymous <code>httpOnly</code> unlock session identifier, hashed IP address, and basic browser user-agent category strictly to verify payment settlement, honor re-access windows, and block automated abuse.</p>
+        <h3>2. How We Use Information</h3>
+        <ul>
+          <li>To provide short-link management, creator analytics, and collective withdrawal settlements.</li>
+          <li>To verify Razorpay checkout transactions server-side and prevent unauthorized bypass or fraud.</li>
+          <li>To investigate abuse reports, DMCA notices, refund requests, and support tickets.</li>
+        </ul>
+        <h3>3. Payment Security &amp; Third-Party Processors</h3>
+        <p>All payments are processed securely by Razorpay in accordance with PCI-DSS standards. ${esc(s.site_name)} never collects, views, or stores card numbers, CVVs, or UPI PINs. We do not sell personal data or load third-party ad-tracking networks on our pages.</p>
+        <h3>4. Cookies &amp; Session Validity</h3>
+        <p>We use essential <code>httpOnly</code> authentication cookies for logged-in creators and signed unlock session cookies so verified buyers retain access for ${s.unlock_validity_hours} hours without paying again.</p>
+        <h3>5. Data Retention, Deletion &amp; Grievance Contact</h3>
+        <p>Payment ledger records are retained as required for accounting, tax, and dispute resolution. For privacy inquiries or account data deletion requests, contact <strong>${esc(s.support_email)}</strong>${s.grievance_officer ? ` (Grievance Officer: ${esc(s.grievance_officer)})` : ''}.</p>
+      </div>
+    </section>
+  `;
+}
+
+function renderDmcaPage() {
+  const s = state.settings;
+  return `
+    <section class="section-container">
+      <div class="prose-card" style="margin-bottom:1.75rem;">
+        <h2>DMCA &amp; Copyright Takedown Policy</h2>
+        <p style="color:var(--text-muted);">Effective for ${esc(s.company_name || s.site_name)} (https://www.socialadlinker.com)</p>
+        <p>${esc(s.site_name)} respects intellectual property rights and complies with Digital Millennium Copyright Act (DMCA) and applicable intermediary notice-and-takedown procedures. We do not host files or third-party media — creators may only shorten links they have legal rights to share.</p>
+
+        <h3>1. Filing a Copyright Infringement Notice</h3>
+        <p>If you believe a shortened link on ${esc(s.site_name)} directs users to material that infringes your copyright, please submit a written notice containing:</p>
+        <ul>
+          <li>Identification of the copyrighted work claimed to have been infringed (or representative reference URL).</li>
+          <li>The exact offending ${esc(s.site_name)} short URL or alias (for example, <code>https://www.socialadlinker.com/abc123</code>).</li>
+          <li>Your full contact information (name, organization if applicable, and valid email address).</li>
+          <li>A statement that you have a good-faith belief that use of the material in the manner complained of is not authorized by the copyright owner, its agent, or the law.</li>
+          <li>A statement under penalty of perjury that the information in the notice is accurate and that you are authorized to act on behalf of the copyright owner.</li>
+        </ul>
+
+        <h3>2. Takedown Action &amp; Counter-Notification</h3>
+        <p>Upon receiving a complete, valid notice, we promptly disable the offending short link and notify the creator. If you are a creator whose link was disabled due to mistake or misidentification, email <strong>${esc(s.support_email)}</strong> with your alias and supporting rights documentation to request a review.</p>
+
+        <h3>3. Designated DMCA Contact</h3>
+        <p>Direct notices to <strong>${esc(s.support_email)}</strong>${s.grievance_officer ? ` (Attn: ${esc(s.grievance_officer)})` : ''} with subject <code>DMCA Takedown Notice</code>, or submit immediately using the form below.</p>
+      </div>
+
+      <div class="card card-auth" style="max-width:860px; margin:0 auto;">
+        <h3 style="font-size:1.3rem; font-weight:800; margin-bottom:0.35rem;">Submit a DMCA Takedown Notice</h3>
+        <p style="color:var(--text-muted); margin-bottom:1.15rem; font-size:0.92rem;">Valid copyright notices are logged directly in our moderation queue for rapid takedown review.</p>
+        <form onsubmit="handleDmcaSubmit(event)">
+          <div class="form-group">
+            <label class="form-label">Infringing Short Link or Alias *</label>
+            <input type="text" id="dmcaAlias" class="form-control" placeholder="e.g. https://www.socialadlinker.com/abc123 or abc123" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Original Copyrighted Work / Reference URL *</label>
+            <input type="text" id="dmcaWorkUrl" class="form-control" placeholder="https://yoursite.com/original-work" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Copyright Owner / Authorized Representative Email *</label>
+            <input type="email" id="dmcaEmail" class="form-control" placeholder="legal@yourcompany.com" required />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Infringement Details *</label>
+            <textarea id="dmcaDetails" rows="4" class="form-control" placeholder="Describe the copyrighted work and confirm ownership..." required></textarea>
+          </div>
+          <div class="form-group" style="display:flex; align-items:flex-start; gap:0.5rem;">
+            <input type="checkbox" id="dmcaConfirm" required style="margin-top:0.25rem;" />
+            <label for="dmcaConfirm" style="font-size:0.88rem; color:var(--text-muted);">I state in good faith and under penalty of perjury that the information provided is accurate and I am the copyright owner or authorized to act on their behalf.</label>
+          </div>
+          <button type="submit" class="btn btn-danger btn-lg">Submit DMCA Notice</button>
+        </form>
       </div>
     </section>
   `;
@@ -1047,12 +1121,13 @@ function renderPublicFooter() {
         </div>
         <div class="footer-links">
           <span style="cursor:pointer" onclick="navigate('about')">About</span>
-          <span style="cursor:pointer" onclick="navigate('pricing')">Pricing</span>
+          <span style="cursor:pointer" onclick="state.activeBlogId=null; navigate('blog')">Blog</span>
           <span style="cursor:pointer" onclick="navigate('payment-proof')">Payouts</span>
           <span style="cursor:pointer" onclick="navigate('contact')">Contact</span>
           <span style="cursor:pointer" onclick="navigate('report')">Report Abuse</span>
           <span style="cursor:pointer" onclick="navigate('terms')">Terms</span>
-          <span style="cursor:pointer" onclick="navigate('privacy')">Privacy</span>
+          <span style="cursor:pointer" onclick="navigate('privacy')">Privacy Policy</span>
+          <span style="cursor:pointer" onclick="navigate('dmca')">DMCA</span>
           <span style="cursor:pointer" onclick="navigate('refund-policy')">Refund Policy</span>
           <span style="cursor:pointer" onclick="navigate('delivery-policy')">Delivery Policy</span>
         </div>
@@ -2746,23 +2821,38 @@ async function handleContactSubmit(e) {
   }
 }
 
-async function handleAbuseReport(e) {
+async function submitPublicAbuseReport(e, payload, fallbackMsg = 'Report submitted.') {
   e.preventDefault();
   try {
     const res = await api('/api/public/report', {
       method: 'POST',
-      body: JSON.stringify({
-        alias: document.getElementById('repAlias').value,
-        reason: document.getElementById('repReason').value,
-        details: document.getElementById('repDetails').value,
-        email: document.getElementById('repEmail').value || undefined
-      })
+      body: JSON.stringify(payload)
     });
-    toast(res.message);
+    toast(res.message || fallbackMsg);
     e.target.reset();
   } catch (err) {
     toast(err.message, true);
   }
+}
+
+function handleAbuseReport(e) {
+  return submitPublicAbuseReport(e, {
+    alias: document.getElementById('repAlias').value,
+    reason: document.getElementById('repReason').value,
+    details: document.getElementById('repDetails').value,
+    email: document.getElementById('repEmail').value || undefined
+  });
+}
+
+function handleDmcaSubmit(e) {
+  const workUrl = document.getElementById('dmcaWorkUrl').value.trim();
+  const details = document.getElementById('dmcaDetails').value.trim();
+  return submitPublicAbuseReport(e, {
+    alias: document.getElementById('dmcaAlias').value,
+    reason: 'copyright',
+    details: `Original Work: ${workUrl}\n\n${details}`,
+    email: document.getElementById('dmcaEmail').value
+  }, 'DMCA takedown notice submitted.');
 }
 
 // ============================================================================

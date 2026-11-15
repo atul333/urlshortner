@@ -17,8 +17,8 @@ const bad = (msg) => new HttpError(400, msg);
 const RESERVED_ALIASES = new Set([
   'api', 'go', 'st', 'js', 'css', 'img', 'assets', 'static', 'public', 'admin', 'member', 'dashboard',
   'login', 'logout', 'register', 'signup', 'forgot-password', 'reset-password', 'pricing', 'developers',
-  'developer-api', 'payment-proof', 'payment-proofs', 'about', 'contact', 'terms', 'privacy',
-  'refund-policy', 'delivery-policy', 'report', 'report-abuse', 'faq', 'help', 'support', 'blog',
+  'developer-api', 'payment-proof', 'payment-proofs', 'about', 'contact', 'terms', 'privacy', 'privacy-policy',
+  'dmca', 'refund-policy', 'delivery-policy', 'report', 'report-abuse', 'faq', 'help', 'support', 'blog',
   'webhook', 'webhooks', 'health', 'healthz', 'robots.txt', 'sitemap.xml', 'favicon.ico', 'unlock',
   'socialadlinker', 'www', 'mail', 'status'
 ]);

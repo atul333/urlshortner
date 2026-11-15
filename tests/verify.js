@@ -182,7 +182,7 @@ async function run() {
     // 1. Health & Public pages
     const anon = new Client(baseUrl);
     assert.equal((await anon.req('/healthz')).status, 200);
-    for (const p of ['/', '/pricing', '/developers', '/payment-proof', '/terms', '/privacy', '/refund-policy', '/delivery-policy', '/contact', '/report']) {
+    for (const p of ['/', '/blog', '/privacy', '/privacy-policy', '/dmca', '/developers', '/payment-proof', '/terms', '/refund-policy', '/delivery-policy', '/contact', '/report']) {
       assert.equal((await anon.req(p)).status, 200, `Expected 200 for ${p}`);
     }
     const pubInfo = await anon.req('/api/public/info');

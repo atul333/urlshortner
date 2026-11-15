@@ -72,17 +72,32 @@ function createApp() {
   app.get('/robots.txt', (req, res) => {
     res.type('text/plain').send('User-agent: *\nDisallow: /go/\nDisallow: /api/\nDisallow: /admin\n');
   });
-  app.use(express.static(publicDir, { index: 'index.html', maxAge: config.isProd ? '1h' : 0 }));
+  app.use(express.static(publicDir, {
+    index: false,
+    etag: true,
+    lastModified: true,
+    setHeaders(res, filePath) {
+      if (/\.(html|js|css)$/i.test(filePath)) {
+        // Revalidate via ETag/Last-Modified so UI updates deploy immediately without 1h stale browser cache
+        res.setHeader('Cache-Control', 'no-cache');
+      } else if (config.isProd) {
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+      }
+    }
+  }));
 
   // 6. Frontend SPA Routes
   const spaRoutes = [
-    '/', '/pricing', '/developers', '/developer-api', '/payment-proof', '/payment-proofs',
-    '/about', '/contact', '/terms', '/privacy', '/refund-policy', '/delivery-policy',
+    '/', '/blog', '/dmca', '/developers', '/developer-api', '/payment-proof', '/payment-proofs',
+    '/about', '/contact', '/terms', '/privacy', '/privacy-policy', '/refund-policy', '/delivery-policy',
     '/report', '/report-abuse', '/login', '/register', '/forgot-password', '/reset-password',
     '/member', '/admin'
   ];
   for (const r of spaRoutes) {
-    app.get(r, (req, res) => res.sendFile(path.join(publicDir, 'index.html')));
+    app.get(r, (req, res) => {
+      res.setHeader('Cache-Control', 'no-cache');
+      res.sendFile(path.join(publicDir, 'index.html'));
+    });
   }
 
   // 7. Catch-all Short Link Route: /:alias -> Anti-Bypass Razorpay Unlock Gate
