@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS users (
   referred_by               BIGINT       REFERENCES users(id) ON DELETE SET NULL,
   api_key_hash              CHAR(64)     UNIQUE,
   api_key_prefix            VARCHAR(20),
+  api_token                 VARCHAR(80),
   public_key                VARCHAR(40)  NOT NULL UNIQUE,
   payout_method             VARCHAR(16)  NOT NULL DEFAULT 'upi' CHECK (payout_method IN ('upi','bank')),
   upi_id                    VARCHAR(100) NOT NULL DEFAULT '',
@@ -234,6 +235,11 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 CREATE INDEX IF NOT EXISTS audit_logs_created_idx ON audit_logs (created_at DESC);
 `
+  },
+  {
+    version: 2,
+    name: 'user_api_token',
+    sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS api_token VARCHAR(80);`
   }
 ];
 

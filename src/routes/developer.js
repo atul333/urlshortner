@@ -123,7 +123,7 @@ async function simpleShorten(req, res) {
     });
   } catch (err) {
     const code = err.status || 400;
-    if (format === 'text') return res.status(code).type('text/plain').send(`Error: ${err.message}`);
+    if (format === 'text') return res.status(code).type('text/plain').send('');
     return res.status(code).json({ status: 'error', message: err.message });
   }
 }

@@ -951,6 +951,120 @@ tr:hover td {
 }
 
 /* ============================================================================
+   DEVELOPERS API PAGE (POST-LOGIN)
+   ============================================================================ */
+.api-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 0.85rem;
+}
+
+.api-page-heading {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 1.15rem;
+}
+
+.api-token-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.api-token-box {
+  flex: 1 1 280px;
+  display: flex;
+  align-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.api-token-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0.72rem 0.9rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9rem;
+  color: #0f172a;
+  outline: none;
+  min-width: 0;
+}
+
+.api-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.8rem;
+  border: none;
+  border-left: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.api-copy-btn:hover {
+  background: #f1f5f9;
+  color: var(--primary);
+}
+
+.api-doc-lead {
+  color: #334155;
+  font-size: 0.93rem;
+  line-height: 1.65;
+  margin-bottom: 0.85rem;
+}
+
+.api-snippet-wrap {
+  position: relative;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  display: flex;
+  align-items: stretch;
+  margin-bottom: 1.1rem;
+  overflow: hidden;
+}
+
+.api-snippet-pre {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0.88rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: #0f172a;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+.api-snippet-wrap .api-copy-btn {
+  align-self: stretch;
+  min-width: 68px;
+}
+
+.api-subheading {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0.35rem 0 0.55rem;
+}
+
+/* ============================================================================
    MOBILE & TABLET RESPONSIVE STYLES
    ============================================================================ */
 @media (max-width: 960px) {
@@ -1263,9 +1377,20 @@ tr:hover td {
     font-size: 0.8rem;
   }
 
-  .code-block {
+  .code-block,
+  .api-snippet-pre,
+  .api-token-input {
     font-size: 0.78rem;
-    padding: 0.85rem;
+  }
+
+  .api-snippet-pre {
+    padding: 0.75rem 0.8rem;
+  }
+
+  .api-copy-btn {
+    padding: 0.45rem 0.65rem;
+    min-width: 54px;
+    font-size: 0.76rem;
   }
 
   .modal-card {

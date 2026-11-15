@@ -102,6 +102,13 @@ function copyText(text, label = 'Copied to clipboard!') {
   toast(label);
 }
 
+function copyById(elId, label = 'Copied to clipboard!') {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const text = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' ? el.value : el.textContent;
+  copyText(text, label);
+}
+
 function validateWholeRupeesClient(raw) {
   const s = String(raw ?? '').trim();
   const min = state.settings.min_price_rupees || 1;
@@ -225,6 +232,17 @@ async function bootstrap() {
     state.user = null;
   }
 
+  if (state.route === 'developers') {
+    if (state.user) {
+      state.route = 'member';
+      state.memberTab = 'api';
+      window.history.replaceState({}, '', '/member');
+    } else {
+      state.route = 'login';
+      window.history.replaceState({}, '', '/login');
+    }
+  }
+
   if (state.route === 'payment-proof') {
     await loadProofs();
   } else if (state.route === 'member') {
@@ -245,6 +263,19 @@ async function bootstrap() {
 async function navigate(route, subTab = null) {
   state.mobileMenuOpen = false;
   state.mobileSidebarOpen = false;
+  if (route === 'developers') {
+    if (state.user) {
+      route = 'member';
+      subTab = 'api';
+    } else {
+      toast('Please login to access Developers API and your personal API token.', true);
+      state.route = 'login';
+      window.history.pushState({}, '', '/login');
+      render();
+      window.scrollTo(0, 0);
+      return;
+    }
+  }
   state.route = route;
   if (route === 'member') {
     if (!state.user) {
@@ -301,8 +332,14 @@ async function loadMemberTab(tab) {
       state.withdrawals = w.withdrawals;
       state.ledger = l.entries;
     } else if (tab === 'api') {
-      const d = await api('/api/member/webhook/deliveries');
+      const requests = [api('/api/member/webhook/deliveries')];
+      if (!state.user || !state.user.api_token) {
+        requests.push(api('/api/member/api-token'));
+      }
+      const [d, tok] = await Promise.all(requests);
       state.webhookDeliveries = d.deliveries || [];
+      if (tok && tok.user) state.user = tok.user;
+      else if (tok && tok.api_token && state.user) state.user.api_token = tok.api_token;
     } else if (tab === 'referrals') {
       state.referrals = await api('/api/member/referrals');
     } else if (tab === 'support') {
@@ -390,7 +427,6 @@ function renderPublicNavbar() {
           <nav class="nav-links">
             <span class="nav-link ${state.route === 'home' ? 'active' : ''}" onclick="navigate('home')">Home</span>
             <span class="nav-link ${state.route === 'pricing' ? 'active' : ''}" onclick="navigate('pricing')">Pricing &amp; CPM</span>
-            <span class="nav-link ${state.route === 'developers' ? 'active' : ''}" onclick="navigate('developers')">API &amp; Bots</span>
             <span class="nav-link ${state.route === 'payment-proof' ? 'active' : ''}" onclick="navigate('payment-proof')">Payouts</span>
             <span class="nav-link ${state.route === 'contact' ? 'active' : ''}" onclick="navigate('contact')">Contact</span>
           </nav>
@@ -415,7 +451,6 @@ function renderPublicLayout() {
   let body = '';
   switch (state.route) {
     case 'pricing': body = renderPricingPage(); break;
-    case 'developers': body = renderDevelopersPage(); break;
     case 'payment-proof': body = renderPaymentProofPage(); break;
     case 'about': body = renderAboutPage(); break;
     case 'contact': body = renderContactPage(); break;
@@ -456,10 +491,10 @@ function renderHomePage() {
         <div class="hero-cta-row">
           ${state.user ? `
             <button class="btn btn-emerald btn-lg" onclick="navigate('member', 'stats')">Open Creator Dashboard →</button>
-            <button class="btn btn-ghost-light btn-lg" onclick="navigate('developers')">View Telegram Bot API</button>
+            <button class="btn btn-ghost-light btn-lg" onclick="navigate('member', 'links')">Create Short Link</button>
           ` : `
             <button class="btn btn-emerald btn-lg" onclick="navigate('register')">Create Free Creator Account →</button>
-            <button class="btn btn-ghost-light btn-lg" onclick="navigate('developers')">Telegram Bot &amp; REST API</button>
+            <button class="btn btn-ghost-light btn-lg" onclick="navigate('pricing')">View Pricing &amp; CPM</button>
           `}
         </div>
 
@@ -499,7 +534,7 @@ function renderHomePage() {
         <div class="feature-card">
           <div class="feature-icon">1</div>
           <h3>Shorten &amp; Set Whole-Rupee Price</h3>
-          <p>Shorten any URL in the dashboard, Mass Shrinker, or automatically via our Telegram Bot REST API. Default price is <strong>₹1</strong>, or charge ₹2, ₹5, ₹10+ per link.</p>
+          <p>Shorten any URL in your dashboard or Mass Shrinker in seconds. Default price is <strong>₹1</strong>, or charge ₹2, ₹5, ₹10+ per link.</p>
         </div>
         <div class="feature-card">
           <div class="feature-icon" style="background:#dcfce7; color:#059669;">2</div>
@@ -523,9 +558,9 @@ function renderHomePage() {
         </div>
         <div class="grid-3">
           <div class="feature-card">
-            <div class="feature-icon">🤖</div>
-            <h3>Telegram Bot &amp; Channel Owners</h3>
-            <p>Connect your Telegram bot to <code>POST /api/v1/links</code> or <code>/api</code> to auto-wrap file links with ₹1+ unlock gates and receive instant webhook callbacks.</p>
+            <div class="feature-icon">📱</div>
+            <h3>Telegram, WhatsApp &amp; Discord Creators</h3>
+            <p>Share clean pay-to-unlock links for exclusive files, videos, resources, and member drops directly inside your channels and communities.</p>
           </div>
           <div class="feature-card">
             <div class="feature-icon">📚</div>
@@ -587,8 +622,8 @@ function renderHomePage() {
           <p>100% of each verified Razorpay unlock is credited to your creator wallet immediately. When you request a collective withdrawal (minimum ${fmtINR(s.min_withdrawal_rupees)}) to your UPI ID or Bank Account, the configured platform fee (currently <strong>${s.withdrawal_commission_percent}%</strong>) is deducted and the net amount is transferred directly.</p>
         </details>
         <details class="faq-item">
-          <summary>Can I integrate SocialAdLinker with my Telegram bot or website?</summary>
-          <p>Yes! Generate a secret API key in your Creator Dashboard and use our REST API (<code>POST /api/v1/links</code>), legacy drop-in endpoint (<code>/api?api=...&amp;url=...</code>), or signed HTTPS webhooks (<code>payment.paid</code>) to automate link creation and unlock fulfillment.</p>
+          <summary>How do visitors pay and unlock a protected link?</summary>
+          <p>Visitors click your short link, complete a quick UPI, QR, or Card payment powered by Razorpay, and are immediately forwarded to your destination URL with zero intrusive ads.</p>
         </details>
         <details class="faq-item">
           <summary>If a user already paid, do they have to pay again on refresh?</summary>
@@ -688,118 +723,6 @@ function updateCalc(field, val) {
   if (field === 'price') state.calcPrice = n;
   else state.calcClicks = n;
   render();
-}
-
-function renderDevelopersPage() {
-  const origin = window.location.origin;
-  const examples = {
-    python: `import os, requests
-
-API_KEY = os.environ["SOCIALADLINKER_API_KEY"]  # sal_sk_...
-
-# Telegram Bot handler example: shorten any URL & charge ₹2 per unlock
-res = requests.post(
-    "${origin}/api/v1/links",
-    headers={"Authorization": f"Bearer {API_KEY}"},
-    json={
-        "url": "https://drive.google.com/file/d/example/view",
-        "price": 2,                # Whole rupees >= 1
-        "title": "Course PDF Pack",
-        "ref": "tg_user_98124"     # Track your Telegram user/order ID
-    },
-    timeout=10,
-)
-data = res.json()["link"]
-print("Send this paid link to user:", data["short_url"])`,
-    node: `const res = await fetch("${origin}/api/v1/links", {
-  method: "POST",
-  headers: {
-    "Authorization": \`Bearer \${process.env.SOCIALADLINKER_API_KEY}\`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    url: "https://example.com/resource.zip",
-    price: 5,
-    title: "UI Design Kit",
-    ref: "order_1049",
-  }),
-});
-const { link } = await res.json();
-console.log("Paid link:", link.short_url);`,
-    curl: `# JSON REST API (Recommended)
-curl -X POST "${origin}/api/v1/links" \\
-  -H "Authorization: Bearer sal_sk_YOUR_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"url":"https://example.com/file","price":2,"title":"Notes PDF","ref":"bot_42"}'
-
-# Simple Drop-in Endpoint (JSON or Plain Text)
-curl "${origin}/api?api=sal_sk_YOUR_KEY&url=https://example.com/file&price=1&format=text"`,
-    webhook: `// Verify SocialAdLinker Webhook in Express.js (when a visitor pays!)
-const crypto = require("node:crypto");
-
-app.post("/socialadlinker-webhook", express.raw({ type: "application/json" }), (req, res) => {
-  const header = req.get("x-sal-signature") || "";
-  const parts = Object.fromEntries(header.split(",").map(p => p.split("=")));
-  const expected = crypto
-    .createHmac("sha256", process.env.SAL_WEBHOOK_SECRET)
-    .update(\`\${parts.t}.\${req.body.toString("utf8")}\`)
-    .digest("hex");
-
-  if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1 || ""))) {
-    return res.status(400).send("Invalid signature");
-  }
-  const event = JSON.parse(req.body.toString("utf8"));
-  if (event.event === "payment.paid") {
-    console.log("Unlocked ref:", event.data.link.external_ref, "₹", event.data.amount_rupees);
-  }
-  res.json({ received: true });
-});`
-  };
-
-  return `
-    <section class="section-container">
-      <div class="section-header">
-        <span class="section-tag">Developer &amp; Bot API</span>
-        <h2 class="section-title">Automate Paid Links in Telegram Bots, Websites &amp; Apps</h2>
-        <p style="color:var(--text-muted); margin-top:0.5rem;">
-          Generate your secret API key (<code>sal_sk_...</code>) inside <a href="javascript:void(0)" onclick="navigate('member', 'api')">Dashboard → API &amp; Webhooks</a>.
-        </p>
-      </div>
-
-      <div class="card" style="max-width:960px; margin:0 auto 1.5rem;">
-        <div class="card-header">
-          <div class="card-title">Code Examples &amp; Telegram Bot Integration</div>
-          <div class="tab-pills" style="margin-bottom:0;">
-            ${['python', 'node', 'curl', 'webhook'].map((k) => `
-              <button class="tab-pill ${state.devLang === k ? 'active' : ''}" onclick="state.devLang='${k}'; render();">
-                ${k === 'python' ? 'Python / Telegram Bot' : k === 'node' ? 'Node.js' : k === 'curl' ? 'cURL & Drop-in /api' : 'Webhook Verification'}
-              </button>
-            `).join('')}
-          </div>
-        </div>
-        <div class="code-block">${esc(examples[state.devLang])}</div>
-      </div>
-
-      <div class="card" style="max-width:960px; margin:0 auto;">
-        <div class="card-header"><div class="card-title">REST API v1 Reference</div></div>
-        <div class="table-responsive">
-          <table>
-            <thead><tr><th>Method &amp; Endpoint</th><th>Description</th></tr></thead>
-            <tbody>
-              <tr><td><code>POST /api/v1/links</code></td><td>Create a paid short link (<code>url</code>, optional <code>price</code> whole ₹, <code>alias</code>, <code>title</code>, <code>ref</code>, <code>expires_at</code>).</td></tr>
-              <tr><td><code>GET /api/v1/links</code></td><td>List links with pagination and <code>?q=</code>, <code>?ref=</code>, <code>?status=</code> filters.</td></tr>
-              <tr><td><code>GET /api/v1/links/:alias</code></td><td>Fetch live clicks, paid unlocks, and revenue for one link.</td></tr>
-              <tr><td><code>PATCH /api/v1/links/:alias</code></td><td>Update <code>price</code> (whole ₹), <code>title</code>, <code>url</code>, or <code>status</code> (<code>active</code>/<code>paused</code>).</td></tr>
-              <tr><td><code>DELETE /api/v1/links/:alias</code></td><td>Soft-delete and deactivate a short link.</td></tr>
-              <tr><td><code>GET /api/v1/payments</code></td><td>List verified Razorpay unlock payments (filter by <code>?alias=</code> or <code>?ref=</code>).</td></tr>
-              <tr><td><code>GET /api/v1/account</code></td><td>Get current wallet balance, default price, and webhook configuration.</td></tr>
-              <tr><td><code>GET /api?api=...&amp;url=...</code></td><td>Drop-in shortener supporting <code>&amp;format=json</code> or <code>&amp;format=text</code>.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-  `;
 }
 
 function renderPaymentProofPage() {
@@ -1125,7 +1048,6 @@ function renderPublicFooter() {
         <div class="footer-links">
           <span style="cursor:pointer" onclick="navigate('about')">About</span>
           <span style="cursor:pointer" onclick="navigate('pricing')">Pricing</span>
-          <span style="cursor:pointer" onclick="navigate('developers')">API Docs</span>
           <span style="cursor:pointer" onclick="navigate('payment-proof')">Payouts</span>
           <span style="cursor:pointer" onclick="navigate('contact')">Contact</span>
           <span style="cursor:pointer" onclick="navigate('report')">Report Abuse</span>
@@ -1155,7 +1077,7 @@ function renderMemberShell() {
     { id: 'links', icon: '🔗', label: 'Manage Links' },
     { id: 'mass', icon: '⚡', label: 'Mass Shrinker' },
     { id: 'withdraw', icon: '💸', label: 'Withdraw & Ledger' },
-    { id: 'api', icon: '🔌', label: 'API & Webhooks' },
+    { id: 'api', icon: '🛠️', label: 'Developers API' },
     { id: 'tools', icon: '🧰', label: 'Site Tools' },
     { id: 'referrals', icon: '👥', label: 'Referrals' },
     { id: 'settings', icon: '⚙️', label: 'Settings' },
@@ -1600,30 +1522,197 @@ function updateWdPreview() {
 function renderMemberApi() {
   const u = state.user;
   const origin = window.location.origin;
+  const apiToken = u.api_token || state.revealedApiKey || '';
+  const copyIcon = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+
+  const renderSnippet = (id, content, copyLabel) => `
+    <div class="api-snippet-wrap">
+      <pre id="${id}" class="api-snippet-pre">${esc(content)}</pre>
+      <button type="button" class="api-copy-btn" title="Copy" aria-label="${esc(copyLabel)}" onclick="copyById('${id}', '${esc(copyLabel)}')">${copyIcon}</button>
+    </div>
+  `;
+
+  const getJsonUrl = `${origin}/api?api=${apiToken}&url=yourdestinationlink.com&alias=CustomAlias`;
+  const jsonResponseSample = `{"status":"success","shortenedUrl":"${origin}/xxxxx"}`;
+  const getTextUrl = `${origin}/api?api=${apiToken}&url=yourdestinationlink.com&alias=CustomAlias&format=text`;
+
+  const phpJson = [
+    "$long_url = urlencode('yourdestinationlink.com');",
+    "$api_token = '" + apiToken + "';",
+    '$api_url = "' + origin + '/api?api={$api_token}&url={$long_url}&alias=CustomAlias";',
+    '$result = @json_decode(file_get_contents($api_url),TRUE);',
+    'if($result["status"] === \'error\') {',
+    '  echo $result["message"];',
+    '} else {',
+    '  echo $result["shortenedUrl"];',
+    '}'
+  ].join('\n');
+
+  const phpText = [
+    "$long_url = urlencode('yourdestinationlink.com');",
+    "$api_token = '" + apiToken + "';",
+    '$api_url = "' + origin + '/api?api={$api_token}&url={$long_url}&alias=CustomAlias&format=text";',
+    '$result = @file_get_contents($api_url);',
+    'if( $result ){',
+    '  echo $result;',
+    '}'
+  ].join('\n');
+
+  const botExamples = {
+    python: [
+      'import requests',
+      '',
+      'API_TOKEN = "' + (apiToken || 'sal_sk_YOUR_API_TOKEN') + '"',
+      '',
+      '# Create a paid short link via REST API v1',
+      'res = requests.post(',
+      '    "' + origin + '/api/v1/links",',
+      '    headers={"Authorization": f"Bearer {API_TOKEN}"},',
+      '    json={',
+      '        "url": "https://yourdestinationlink.com",',
+      '        "price": ' + u.default_price_rupees + ',  # Whole rupees >= 1',
+      '        "alias": "CustomAlias",',
+      '        "ref": "tg_user_98124",',
+      '    },',
+      '    timeout=10,',
+      ')',
+      'print(res.json()["link"]["short_url"])'
+    ].join('\n'),
+    node: [
+      'const res = await fetch("' + origin + '/api/v1/links", {',
+      '  method: "POST",',
+      '  headers: {',
+      '    "Authorization": "Bearer ' + (apiToken || 'sal_sk_YOUR_API_TOKEN') + '",',
+      '    "Content-Type": "application/json",',
+      '  },',
+      '  body: JSON.stringify({',
+      '    url: "https://yourdestinationlink.com",',
+      '    price: ' + u.default_price_rupees + ',',
+      '    alias: "CustomAlias",',
+      '    ref: "order_1049",',
+      '  }),',
+      '});',
+      'const { link } = await res.json();',
+      'console.log("Paid link:", link.short_url);'
+    ].join('\n'),
+    curl: [
+      '# REST API v1 (Bearer token)',
+      'curl -X POST "' + origin + '/api/v1/links" \\',
+      '  -H "Authorization: Bearer ' + (apiToken || 'sal_sk_YOUR_API_TOKEN') + '" \\',
+      '  -H "Content-Type: application/json" \\',
+      '  -d \'{"url":"https://yourdestinationlink.com","price":' + u.default_price_rupees + ',"alias":"CustomAlias"}\'',
+      '',
+      '# GET Shortener (Plain Text response)',
+      'curl "' + getTextUrl + '"'
+    ].join('\n'),
+    webhook: [
+      'const crypto = require("node:crypto");',
+      '',
+      'app.post("/socialadlinker-webhook", express.raw({ type: "application/json" }), (req, res) => {',
+      '  const header = req.get("x-sal-signature") || "";',
+      '  const parts = Object.fromEntries(header.split(",").map(p => p.split("=")));',
+      '  const expected = crypto',
+      '    .createHmac("sha256", process.env.SAL_WEBHOOK_SECRET)',
+      '    .update(`${parts.t}.${req.body.toString("utf8")}`)',
+      '    .digest("hex");',
+      '  if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(parts.v1 || ""))) {',
+      '    return res.status(400).send("Invalid signature");',
+      '  }',
+      '  const event = JSON.parse(req.body.toString("utf8"));',
+      '  if (event.event === "payment.paid") {',
+      '    console.log("Unlocked:", event.data.link.alias, "₹", event.data.amount_rupees);',
+      '  }',
+      '  res.json({ received: true });',
+      '});'
+    ].join('\n')
+  };
+
   return `
+    <div class="api-breadcrumb">
+      <a href="javascript:void(0)" onclick="navigate('member', 'stats')" style="color:var(--primary); text-decoration:none; font-weight:600;">Dashboard</a>
+      <span>/</span>
+      <span>Developers API</span>
+    </div>
+
+    <h2 class="api-page-heading">Developers API</h2>
+
     <div class="card">
       <div class="card-header">
-        <div class="card-title">Secret Developer API Key (For Telegram Bots &amp; Servers)</div>
-        <button class="btn btn-sm btn-primary" onclick="regenApiKey()">${u.has_api_key ? 'Regenerate API Key' : 'Generate API Key'}</button>
+        <div class="card-title">&lt;/&gt; Your API token:</div>
+        <button type="button" class="btn btn-sm btn-outline" onclick="regenApiKey()">Regenerate Token</button>
       </div>
-      ${state.revealedApiKey ? `
-        <div style="background:#ecfdf5; border:1px solid #10b981; padding:1rem; border-radius:10px; margin-bottom:1rem;">
-          <div style="font-weight:700; color:#065f46; margin-bottom:0.4rem;">Copy your new API key now — for security, it will never be shown in full again:</div>
-          <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
-            <code class="break-all" style="font-size:0.92rem; padding:0.4rem 0.7rem;">${esc(state.revealedApiKey)}</code>
-            <button class="btn btn-sm btn-emerald" onclick="copyText('${esc(state.revealedApiKey)}', 'Secret API Key copied!')">Copy Key</button>
+      ${apiToken ? `
+        <div class="api-token-row">
+          <div class="api-token-box">
+            <input id="devApiTokenInput" type="text" class="api-token-input" value="${esc(apiToken)}" readonly aria-label="Your personal API token" onclick="this.select()" />
+            <button type="button" class="api-copy-btn" title="Copy API token" onclick="copyById('devApiTokenInput', 'API token copied!')">${copyIcon} Copy</button>
           </div>
         </div>
+        <div class="form-hint" style="margin-top:0.55rem;">
+          This unique API token is automatically generated for your account (<code>@${esc(u.username)}</code>). Keep it private — all links created with it credit your wallet directly.
+        </div>
       ` : `
-        <p style="color:var(--text-muted); margin-bottom:0.85rem;">
-          ${u.has_api_key ? `Active key prefix: <code>${esc(u.api_key_prefix)}••••••••••••••••</code>` : 'No secret API key generated yet. Click "Generate API Key" to start.'}
-        </p>
+        <p style="color:var(--text-muted);">Loading your personal API token...</p>
       `}
-      <div class="code-block">POST ${origin}/api/v1/links
-Authorization: Bearer ${esc(state.revealedApiKey || 'sal_sk_YOUR_API_KEY')}
-Content-Type: application/json
+    </div>
 
-{"url": "https://example.com/resource", "price": ${u.default_price_rupees}, "ref": "tg_chat_123"}</div>
+    <div class="card">
+      <p class="api-doc-lead">
+        For developers <strong>SocialAdLinker</strong> prepared an <strong>API</strong> which returns responses in <strong>JSON</strong> or <strong>TEXT</strong> formats.<br />
+        Currently there is one method which can be used to shorten links on behalf of your account (optionally pass <code>&amp;price=${u.default_price_rupees}</code> for whole-rupee pricing; defaults to your account price of ₹${u.default_price_rupees}).<br />
+        All you have to do is to send a <strong>GET</strong> request with your API token and URL like the following:
+      </p>
+      ${renderSnippet('devApiGetJsonExample', getJsonUrl, 'API GET URL copied!')}
+
+      <p class="api-doc-lead" style="margin-top:0.25rem;">
+        You will get a <strong>JSON</strong> response like the following
+      </p>
+      ${renderSnippet('devApiJsonRespExample', jsonResponseSample, 'JSON example copied!')}
+
+      <p class="api-doc-lead" style="margin-top:0.25rem;">
+        If you want a <strong>TEXT</strong> response just add <strong>&amp;format=text</strong> at the end of your request as the below example. This will return just the short link. Note that if an error occurs, it will not output anything.
+      </p>
+      ${renderSnippet('devApiGetTextExample', getTextUrl, 'TEXT format URL copied!')}
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">&lt;/&gt; Using the API in PHP</div>
+      </div>
+      <p class="api-doc-lead">
+        To use the API in your PHP application, you need to send a GET request via <code>file_get_contents</code> or <code>cURL</code>. Please check the below sample examples using <code>file_get_contents</code>
+      </p>
+
+      <div class="api-subheading">Using JSON Response</div>
+      ${renderSnippet('devPhpJsonSnippet', phpJson, 'PHP JSON code copied!')}
+
+      <div class="api-subheading">Using Plain Text Response</div>
+      ${renderSnippet('devPhpTextSnippet', phpText, 'PHP Plain Text code copied!')}
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Telegram Bot, REST API v1 &amp; Code Examples</div>
+        <div class="tab-pills" style="margin-bottom:0;">
+          ${['python', 'node', 'curl', 'webhook'].map((k) => `
+            <button type="button" class="tab-pill ${state.devLang === k ? 'active' : ''}" onclick="state.devLang='${k}'; render();">
+              ${k === 'python' ? 'Python / Telegram Bot' : k === 'node' ? 'Node.js' : k === 'curl' ? 'cURL' : 'Webhook'}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+      ${renderSnippet('devBotCodeSnippet', botExamples[state.devLang] || botExamples.python, 'Code snippet copied!')}
+      <div class="table-responsive" style="margin-top:0.85rem;">
+        <table>
+          <thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>GET /api?api=...&amp;url=...</code></td><td>Drop-in GET shortener (<code>&amp;alias=</code>, optional <code>&amp;price=</code> whole ₹, <code>&amp;format=text</code>).</td></tr>
+            <tr><td><code>POST /api/v1/links</code></td><td>Create paid short link via JSON (<code>url</code>, <code>price</code>, <code>alias</code>, <code>title</code>, <code>ref</code>).</td></tr>
+            <tr><td><code>GET /api/v1/links</code></td><td>List your links &amp; live stats (<code>?q=</code>, <code>?ref=</code>, <code>?status=</code>).</td></tr>
+            <tr><td><code>GET /api/v1/payments</code></td><td>List verified Razorpay unlock payments (<code>?alias=</code>, <code>?ref=</code>).</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div class="card">
@@ -2541,12 +2630,13 @@ async function handleWithdrawSubmit(e) {
 }
 
 async function regenApiKey() {
-  if (state.user.has_api_key && !confirm('Regenerate API key? Your existing key will stop working immediately.')) return;
+  if (state.user.has_api_key && !confirm('Regenerate API token? Your previous token will stop working immediately.')) return;
   try {
     const res = await api('/api/member/api-key/regenerate', { method: 'POST' });
+    if (res.user && res.api_key && !res.user.api_token) res.user.api_token = res.api_key;
     state.user = res.user;
     state.revealedApiKey = res.api_key;
-    toast('New secret API key generated!');
+    toast('New personal API token generated!');
     render();
   } catch (err) {
     toast(err.message, true);

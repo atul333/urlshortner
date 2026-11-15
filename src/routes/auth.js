@@ -5,10 +5,10 @@ const config = require('../config');
 const settings = require('../lib/settings');
 const rate = require('../lib/rateLimit');
 const mailer = require('../lib/mailer');
-const { hashPassword, verifyPassword, generatePublicKey, randomToken, sha256 } = require('../lib/security');
+const { hashPassword, verifyPassword, generatePublicKey, generateApiKey, randomToken, sha256 } = require('../lib/security');
 const { HttpError, bad, validateEmail, validateUsername, validatePassword, cleanText } = require('../lib/validators');
 const { setSessionCookie, clearSessionCookie, loadUser, sameOrigin } = require('../middleware/auth');
-const { serializeUser } = require('../services/users');
+const { serializeUser, ensureUserApiToken } = require('../services/users');
 
 const router = express.Router();
 router.use(sameOrigin);
@@ -38,13 +38,14 @@ router.post('/register', rate.limit({ name: 'register', max: 5, windowMs: 60 * 6
     referredBy = ref?.id || null;
   }
 
+  const apiKey = generateApiKey();
   const user = await db.one(
-    `INSERT INTO users (username, email, password_hash, full_name, public_key, default_price_rupees, referred_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [username, email, await hashPassword(password), fullName, generatePublicKey(), s.default_price_rupees, referredBy]
+    `INSERT INTO users (username, email, password_hash, full_name, public_key, api_key_hash, api_key_prefix, api_token, default_price_rupees, referred_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+    [username, email, await hashPassword(password), fullName, generatePublicKey(), apiKey.hash, apiKey.prefix, apiKey.key, s.default_price_rupees, referredBy]
   );
   setSessionCookie(res, user);
-  res.status(201).json({ user: serializeUser(user) });
+  res.status(201).json({ user: serializeUser(user, { includeApiToken: true }) });
 });
 
 router.post('/login', async (req, res) => {
@@ -54,14 +55,15 @@ router.post('/login', async (req, res) => {
   rate.check(`login-ip:${req.ip}`, 30, 15 * 60 * 1000, 'Too many login attempts. Please wait 15 minutes.');
   rate.check(`login-id:${identifier}`, 8, 15 * 60 * 1000, 'Too many login attempts for this account. Please wait 15 minutes.');
 
-  const user = await db.one('SELECT * FROM users WHERE lower(username) = $1 OR lower(email) = $1', [identifier]);
+  let user = await db.one('SELECT * FROM users WHERE lower(username) = $1 OR lower(email) = $1', [identifier]);
   const ok = user ? await verifyPassword(password, user.password_hash) : (await verifyPassword(password, dummyHash || ''), false);
   if (!user || !ok) throw new HttpError(401, 'Invalid username/email or password.');
   if (user.status !== 'active') throw new HttpError(403, 'Your account is suspended. Please contact support.');
 
   await db.query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);
+  user = await ensureUserApiToken(user);
   setSessionCookie(res, user);
-  res.json({ user: serializeUser(user) });
+  res.json({ user: serializeUser(user, { includeApiToken: true }) });
 });
 
 router.post('/logout', (req, res) => {
@@ -70,9 +72,10 @@ router.post('/logout', (req, res) => {
 });
 
 router.get('/me', async (req, res) => {
-  const user = await loadUser(req);
+  let user = await loadUser(req);
+  if (user) user = await ensureUserApiToken(user);
   const s = await settings.getAll();
-  res.json({ user: user ? serializeUser(user) : null, settings: settings.publicView(s) });
+  res.json({ user: user ? serializeUser(user, { includeApiToken: true }) : null, settings: settings.publicView(s) });
 });
 
 router.post('/forgot-password', rate.limit({ name: 'forgot', max: 5, windowMs: 60 * 60 * 1000 }), async (req, res) => {
@@ -116,7 +119,7 @@ router.post('/reset-password', rate.limit({ name: 'reset', max: 10, windowMs: 60
   });
   if (!result) throw bad('Invalid or expired reset link. Please request a new one.');
   setSessionCookie(res, result);
-  res.json({ ok: true, user: serializeUser(result) });
+  res.json({ ok: true, user: serializeUser(result, { includeApiToken: true }) });
 });
 
 module.exports = router;

@@ -13,7 +13,7 @@ const {
   validatePassword, assertPublicWebhookUrl, pageParams
 } = require('../lib/validators');
 const { requireUser, sameOrigin, setSessionCookie } = require('../middleware/auth');
-const { serializeUser, rupees } = require('../services/users');
+const { serializeUser, ensureUserApiToken, rupees } = require('../services/users');
 const { istDay } = require('../services/ledger');
 const linkSvc = require('../services/links');
 const creatorWebhooks = require('../services/creatorWebhooks');
@@ -23,7 +23,7 @@ router.use(sameOrigin);
 router.use(requireUser);
 
 router.get('/dashboard', async (req, res) => {
-  const user = req.user;
+  const user = await ensureUserApiToken(req.user);
   const s = await settings.getAll();
 
   const agg = await db.one(
@@ -74,7 +74,7 @@ router.get('/dashboard', async (req, res) => {
   );
 
   res.json({
-    user: serializeUser(user),
+    user: serializeUser(user, { includeApiToken: true }),
     settings: settings.publicView(s),
     summary: {
       total_links: agg.total_links,
@@ -147,7 +147,7 @@ router.get('/withdrawals', async (req, res) => {
   const s = await settings.getAll();
   const rows = await db.many('SELECT * FROM withdrawals WHERE user_id = $1 ORDER BY created_at DESC LIMIT 100', [req.user.id]);
   res.json({
-    user: serializeUser(req.user),
+    user: serializeUser(req.user, { includeApiToken: true }),
     settings: settings.publicView(s),
     withdrawals: rows.map((w) => ({
       id: w.id,
@@ -228,7 +228,7 @@ router.post('/withdrawals', rate.limit({ name: 'withdraw', max: 10, windowMs: 60
   });
 
   res.status(201).json({
-    user: serializeUser(result.user),
+    user: serializeUser(result.user, { includeApiToken: true }),
     withdrawal: {
       id: result.withdrawal.id,
       gross_rupees: rupees(result.withdrawal.gross_paise),
@@ -280,13 +280,18 @@ router.get('/referrals', async (req, res) => {
 });
 
 // ---- API Key & Webhooks ----
+router.get('/api-token', async (req, res) => {
+  const user = await ensureUserApiToken(req.user);
+  res.json({ api_token: user.api_token, user: serializeUser(user, { includeApiToken: true }) });
+});
+
 router.post('/api-key/regenerate', async (req, res) => {
   const { key, hash, prefix } = generateApiKey();
   const user = await db.one(
-    'UPDATE users SET api_key_hash = $2, api_key_prefix = $3, updated_at = now() WHERE id = $1 RETURNING *',
-    [req.user.id, hash, prefix]
+    'UPDATE users SET api_key_hash = $2, api_key_prefix = $3, api_token = $4, updated_at = now() WHERE id = $1 RETURNING *',
+    [req.user.id, hash, prefix, key]
   );
-  res.json({ api_key: key, api_key_prefix: prefix, user: serializeUser(user) });
+  res.json({ api_key: key, api_key_prefix: prefix, user: serializeUser(user, { includeApiToken: true }) });
 });
 
 router.patch('/webhook', async (req, res) => {
@@ -298,7 +303,7 @@ router.patch('/webhook', async (req, res) => {
     'UPDATE users SET webhook_url = $2, webhook_secret = $3, updated_at = now() WHERE id = $1 RETURNING *',
     [req.user.id, url, secret]
   );
-  res.json({ user: serializeUser(user), webhook_secret: req.body?.rotate_secret || (url && !req.user.webhook_secret) ? secret : undefined });
+  res.json({ user: serializeUser(user, { includeApiToken: true }), webhook_secret: req.body?.rotate_secret || (url && !req.user.webhook_secret) ? secret : undefined });
 });
 
 router.post('/webhook/reveal-secret', async (req, res) => {
@@ -366,7 +371,7 @@ router.patch('/settings', async (req, res) => {
     : req.user;
 
   if (passwordChanged) setSessionCookie(res, user);
-  res.json({ user: serializeUser(user) });
+  res.json({ user: serializeUser(user, { includeApiToken: true }) });
 });
 
 // ---- Support Tickets ----

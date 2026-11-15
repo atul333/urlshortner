@@ -204,12 +204,34 @@ async function run() {
     });
     assert.equal(reg.status, 201);
     assert.equal(reg.data.user.default_price_rupees, 1);
+    const initialApiToken = reg.data.user.api_token;
+    assert.ok(initialApiToken && initialApiToken.startsWith('sal_sk_'), 'Registration must auto-generate a personal API token');
 
-    // 3. Whole-number price enforcement & Developer API key + Telegram Bot workflow
+    const tokenRes = await creator.req('/api/member/api-token');
+    assert.equal(tokenRes.status, 200);
+    assert.equal(tokenRes.data.api_token, initialApiToken);
+
+    // Auto-generated personal token must work immediately on GET /api (JSON + CustomAlias + domain-only URL)
+    const legacyJson = await anon.req(`/api?api=${initialApiToken}&url=yourdestinationlink.com&alias=CustomAlias`);
+    assert.equal(legacyJson.status, 200);
+    assert.equal(legacyJson.data.status, 'success');
+    assert.equal(legacyJson.data.shortenedUrl, `${baseUrl}/CustomAlias`);
+
+    // On &format=text errors, output nothing
+    const legacyTextErr = await anon.req(`/api?api=${initialApiToken}&url=notadomain&format=text`);
+    assert.equal(legacyTextErr.status, 400);
+    assert.equal(legacyTextErr.data, '');
+
+    // 3. Whole-number price enforcement & Developer API key + Telegram Bot workflow (regeneration rotates token)
     const keyRes = await creator.req('/api/member/api-key/regenerate', { method: 'POST' });
     assert.equal(keyRes.status, 200);
     const apiKey = keyRes.data.api_key;
     assert.ok(apiKey.startsWith('sal_sk_'));
+    assert.notEqual(apiKey, initialApiToken, 'Regenerated API token must differ from initial token');
+    assert.equal(keyRes.data.user.api_token, apiKey);
+
+    const oldTokenFail = await anon.req(`/api?api=${initialApiToken}&url=https://example.com/old`);
+    assert.equal(oldTokenFail.status, 401);
 
     // Reject decimal prices across dashboard & API v1 & legacy /api
     for (const badP of [1.1, 1.5, 0, -3, '2.5', 'abc']) {

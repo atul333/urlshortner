@@ -1,5 +1,8 @@
 'use strict';
 
+const db = require('../db');
+const { generateApiKey } = require('../lib/security');
+
 const rupees = (paise) => Math.round(Number(paise || 0)) / 100;
 
 function maskAccount(num) {
@@ -7,8 +10,18 @@ function maskAccount(num) {
   return s.length > 4 ? `${'•'.repeat(Math.min(8, s.length - 4))}${s.slice(-4)}` : s;
 }
 
-/** Shape of the logged-in user returned to the browser (never includes secrets/hashes). */
-function serializeUser(u) {
+/** Ensure an active user has their own persisted per-account API token. */
+async function ensureUserApiToken(user) {
+  if (!user || user.api_token) return user;
+  const { key, hash, prefix } = generateApiKey();
+  return db.one(
+    'UPDATE users SET api_key_hash = $2, api_key_prefix = $3, api_token = $4, updated_at = now() WHERE id = $1 RETURNING *',
+    [user.id, hash, prefix, key]
+  );
+}
+
+/** Shape of the logged-in user returned to the browser. Only includes api_token for the account owner when explicitly requested. */
+function serializeUser(u, { includeApiToken = false } = {}) {
   return {
     id: u.id,
     username: u.username,
@@ -25,6 +38,7 @@ function serializeUser(u) {
     referral_earned_rupees: rupees(u.referral_earned_paise),
     has_api_key: Boolean(u.api_key_hash),
     api_key_prefix: u.api_key_prefix || null,
+    ...(includeApiToken ? { api_token: u.api_token || null } : {}),
     public_key: u.public_key,
     payout_method: u.payout_method,
     upi_id: u.upi_id,
@@ -46,5 +60,5 @@ function serializeUserAdmin(u) {
   };
 }
 
-module.exports = { serializeUser, serializeUserAdmin, rupees, maskAccount };
+module.exports = { serializeUser, serializeUserAdmin, ensureUserApiToken, rupees, maskAccount };
 
